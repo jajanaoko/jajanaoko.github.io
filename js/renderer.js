@@ -151,7 +151,7 @@ export function updateHoverPhysics() {
   }
 }
 
-function drawSurfaceFX(c, t, w, h, r, hov, isExport) {
+export function drawSurfaceFX(c, t, w, h, r, hov, isExport) {
   // Set up clip so all surface FX are contained within the card shape
   st.ctx.save();
   roundRectPath(st.ctx, -w / 2, -h / 2, w, h, r);
@@ -163,10 +163,13 @@ function drawSurfaceFX(c, t, w, h, r, hov, isExport) {
     ? Math.min(0.55, window._gyroVelocity * 9)
     : 0;
 
+  // tiltFrac is shared across multiple FX (glare, luster) — hoist it here so
+  // luster doesn't read undefined when glare is off.
+  var tiltFrac = hov ? (hov.tilt / 6) : 0;
+
   // Glare overlay
   if (c.glare && c.glare.on) {
     var gi = (c.glare.intensity || 1) * (1 + _velFlash * 0.7);
-    var tiltFrac = hov.tilt / 6;
     // Gyro shifts glare both horizontally (tiltX) and vertically (tiltY)
     var gyroGlareY = window._gyroActive ? ((window._gyroTiltY || 0) / 10) : 0;
     var glareX = tiltFrac * (w * 0.4);

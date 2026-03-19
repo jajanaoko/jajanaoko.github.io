@@ -1684,8 +1684,8 @@
 
     /* Bottom panel — sits above the nav, add padding so content is never clipped */
     #bottom-panel {
-      flex: 0 0 auto !important;
-      max-height: 60vh !important;
+      flex: 0 0 auto;
+      max-height: 72vh;
       padding-bottom: 12px;
     }
     /* Make resize handle prominent and easy to grab on mobile */
@@ -1727,7 +1727,7 @@
 
     /* ── Timeline expanded: bigger scenes on mobile ── */
     #bottom-panel.timeline-expanded {
-      flex: 0 0 340px !important;
+      flex: 0 0 340px;
     }
     /* Make timeline header scenes row taller and easier to tap */
     #timeline-header {

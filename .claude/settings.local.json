@@ -36,7 +36,8 @@
       "Bash(sed -n '9,1731p' \"/Users/markokolic/Documents/Arcana Glam/Arcana_Glam_Mobile.html\")",
       "Bash(\"/Users/markokolic/Documents/Arcana Glam/css/main.css\")",
       "Bash(grep -o \"{ name: ''[^'']*''\" \"/Users/markokolic/Documents/Arcana Glam/js/state.js\")",
-      "Bash(cat:*)"
+      "Bash(cat:*)",
+      "Bash(grep -l \"particle\\\\|orb\\\\|spark\\\\|flare\" \"/Users/markokolic/Documents/Arcana Glam/js\"/*.js)"
     ]
   }
 }

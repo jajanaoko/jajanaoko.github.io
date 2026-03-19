@@ -107,7 +107,8 @@ export function initPanelResizers() {
     var active = false, startY = 0, startH = 0;
     function applyH(clientY) {
       var delta = startY - clientY;
-      var h = Math.max(80, Math.min(window.innerHeight * 0.75, startH + delta));
+      var maxH  = window.innerHeight * 0.72;
+      var h = Math.max(80, Math.min(maxH, startH + delta));
       panel.style.flex      = '0 0 ' + h + 'px';
       panel.style.minHeight = '';
       panel.style.maxHeight = '';
@@ -126,13 +127,18 @@ export function initPanelResizers() {
       document.body.style.userSelect  = '';
       document.body.style.touchAction = '';
     }
-    handle.addEventListener('touchstart', function(e) { e.preventDefault(); e.stopPropagation(); startResize(e.touches[0].clientY); }, { passive: false });
-    handle.addEventListener('touchmove',  function(e) { if (!active) return; e.preventDefault(); e.stopPropagation(); applyH(e.touches[0].clientY); }, { passive: false });
-    handle.addEventListener('touchend',    function(e) { e.preventDefault(); endResize(); }, { passive: false });
-    handle.addEventListener('touchcancel', function(e) { e.preventDefault(); endResize(); }, { passive: false });
-    handle.addEventListener('mousedown', function(e) { e.preventDefault(); e.stopPropagation(); startResize(e.clientY); });
-    window.addEventListener('mousemove', function(e) { if (!active) return; applyH(e.clientY); });
-    window.addEventListener('mouseup', endResize);
+    handle.addEventListener('pointerdown', function(e) {
+      e.preventDefault(); e.stopPropagation();
+      handle.setPointerCapture(e.pointerId);
+      startResize(e.clientY);
+    });
+    handle.addEventListener('pointermove', function(e) {
+      if (!active) return;
+      e.preventDefault();
+      applyH(e.clientY);
+    });
+    handle.addEventListener('pointerup',     function() { endResize(); });
+    handle.addEventListener('pointercancel', function() { endResize(); });
   })();
 
   (function() {

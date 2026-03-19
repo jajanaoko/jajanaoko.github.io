@@ -225,15 +225,17 @@
 
     /* Bottom panel — sits above the nav, add padding so content is never clipped */
     #bottom-panel {
-      flex: 0 0 auto !important;
-      max-height: 60vh !important;
+      /* No !important on flex — JS resize sets inline flex-basis and must win */
+      flex: 0 0 auto;
+      max-height: 72vh;
       padding-bottom: 12px;
     }
-    /* Make resize handle prominent and easy to grab on mobile */
+    /* Always show resize handle on mobile regardless of timeline-expanded state */
     #bottom-resize-handle {
-      flex: 0 0 36px !important;
-      height: 36px !important;
-      min-height: 36px !important;
+      display: flex !important;
+      flex: 0 0 40px !important;
+      height: 40px !important;
+      min-height: 40px !important;
       background: var(--panel) !important;
       border-bottom: 1px solid var(--border) !important;
     }
@@ -268,7 +270,7 @@
 
     /* ── Timeline expanded: bigger scenes on mobile ── */
     #bottom-panel.timeline-expanded {
-      flex: 0 0 340px !important;
+      flex: 0 0 340px;
     }
     /* Make timeline header scenes row taller and easier to tap */
     #timeline-header {

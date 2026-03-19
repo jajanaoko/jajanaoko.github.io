@@ -8,7 +8,7 @@
 import { AppState as st, STOCK_CARDS } from './state.js';
 import { initPanelResizers, screenToWorld } from './canvas-engine.js';
 import { drawCard, drawTextObj, drawRectObj, drawCustomCard, drawResizeHandles,
-         drawGlobalLighting,
+         drawGlobalLighting, drawSurfaceFX,
          refreshSurfacePreview, refreshInspectorAssetGrid, refreshInspectorContent,
          applySurface, updateHoverPhysics } from './renderer.js';
 import { drawBgEffects, drawBgEffectsStack,
@@ -618,6 +618,13 @@ function render(t, dt) {
   var _dpr = W / (CW || 1);
   st.ctx.clearRect(0, 0, W, H);
 
+  // Clear particle/FX overlay each render frame (not in the Three.js RAF loop,
+  // because two independent RAF loops would create a race condition).
+  if (window._showcase3DActive && window._showcase3DParticleCtx) {
+    var _poc = window._showcase3DParticleCtx;
+    _poc.clearRect(0, 0, _poc.canvas.width, _poc.canvas.height);
+  }
+
   st.ctx.save();
   st.ctx.scale(_dpr, _dpr);
 
@@ -700,8 +707,44 @@ function render(t, dt) {
         tickAndDrawParticles(_c, _c.x + _ax, _c.y + _ay, _cs, _cr, t, dt);
       }
     } else {
-      drawCard(_c, t, false);
-      if (_c.spell && _c.spell.on) {
+      // Skip 2D card draw when the Three.js 3D overlay is active in showcase mode
+      if (!window._showcase3DActive) {
+        drawCard(_c, t, false);
+      } else if (window._showcase3DParticleCtx && window._showcase3DCardPositions) {
+        // Draw surface FX (holo, shimmer, luster, etc.) on the overlay canvas
+        // at the 3D card's projected screen position.
+        for (var _fxi = 0; _fxi < window._showcase3DCardPositions.length; _fxi++) {
+          var _fxp = window._showcase3DCardPositions[_fxi];
+          if (_fxp.card !== _c) continue;
+
+          // 3D card center in 2D world coords
+          var _fxSX = (_fxp.ndcX + 1) / 2 * window.innerWidth;
+          var _fxSY = (-_fxp.ndcY + 1) / 2 * window.innerHeight;
+          var _fxWP = screenToWorld(_fxSX, _fxSY);
+
+          // On-screen card height (CSS px) → 2D world scale
+          // screenH = CARD_H * cs * camZoomRef, so cs = screenH / (CARD_H * camZoomRef)
+          var _fxTopY = (-_fxp.ndcTopY + 1) / 2 * window.innerHeight;
+          var _fxBotY = (-_fxp.ndcBotY + 1) / 2 * window.innerHeight;
+          var _fxScreenH = Math.abs(_fxBotY - _fxTopY);
+          var _fxCs = _fxScreenH / (154 * (st.camZoomRef || 1));
+
+          var _fxCtx  = window._showcase3DParticleCtx;
+          var _fxXfm  = st.ctx.getTransform();
+          var _fxOrig = st.ctx;
+          _fxCtx.save();
+          _fxCtx.setTransform(_fxXfm);
+          _fxCtx.translate(_fxWP.x, _fxWP.y);
+          _fxCtx.scale(_fxCs, _fxCs);
+          st.ctx = _fxCtx;
+          drawSurfaceFX(_c, t, 110, 154, 8, { tilt: 0, elev: 1 }, false);
+          st.ctx = _fxOrig;
+          _fxCtx.restore();
+          break;
+        }
+      }
+      if (_c.spell && _c.spell.on && !window._showcase3DActive) {
+        // In showcase mode, THREE.Points in showcase-3d.js handles particles
         var _ax = _c._ax || 0, _ay = _c._ay || 0, _as = _c._as || 1;
         var _hov = st.hoverData[_c.id];
         var _elev = (_hov && _hov.elev) ? _hov.elev : 1;
@@ -1087,6 +1130,10 @@ export function addBgFxLayer(type) {
     p.intensity = 1.0; p.speed = 0.5;
     p.particleColor1 = '#cc3333'; p.particleColor2 = '#ff9900';
   }
+  if (type === 'magma') {
+    st._magmaGL = null;
+    p.intensity = 1.0; p.speed = 0.6; p.magmaCrust = 1.0;
+  }
   if (type === 'godrays') {
     st._grGL = null; // force shader recompile with latest _GR_FRAG
     p.intensity = 1.0; p.speed = 0.75;
@@ -1171,7 +1218,7 @@ export function _resetBgFxRuntime() {
 }
 
 export function _layerTypeLabel(type) {
-  var map = { fire:'🔥 Fire', cosmic:'🌙 Cosmic', shadow:'🌑 Shadow', nature:'🌿 Nature', smoke:'☁️ Smoke', crystal:'💎 Crystal', metaballs:'🫧 Metaballs', smokering:'🌀 Smoke Ring', godrays:'✦ God Rays' };
+  var map = { fire:'🔥 Fire', cosmic:'🌙 Cosmic', shadow:'🌑 Shadow', nature:'🌿 Nature', smoke:'☁️ Smoke', crystal:'💎 Crystal', metaballs:'🫧 Metaballs', smokering:'🌀 Smoke Ring', godrays:'✦ God Rays', magma:'🌋 Magma' };
   return map[type] || type;
 }
 
@@ -1359,6 +1406,18 @@ var BG_FX_REGISTRY = [
       { id: 'grColorSecondary', label: 'Secondary',   type: 'color', default: '#33fff5' },
       { id: 'grColorBack',      label: 'Background',  type: 'color', default: '#000000' }
     ]
+  },
+  {
+    id: 'magma', blendDefault: 'source-over',
+    params: [
+      { id: 'intensity',   label: 'Intensity', type: 'range', min: 0.1, max: 2.0, step: 0.05 },
+      { id: 'speed',       label: 'Speed',     type: 'range', min: 0.1, max: 3.0, step: 0.05 },
+      { id: 'magmaCrust',  label: 'Crust',     type: 'range', min: 0.0, max: 2.0, step: 0.05 },
+      { id: 'magmaScale',  label: 'Wave Size', type: 'range', min: 1.0, max: 8.0, step: 0.1,
+        sideEffect: 'resetMagma' },
+      { id: 'magmaColor1', label: 'Lava',      type: 'color', nullable: true },
+      { id: 'magmaColor2', label: 'Crust',     type: 'color', nullable: true }
+    ]
   }
 ];
 
@@ -1395,7 +1454,8 @@ var BLEND_OPTIONS = [
 var SIDE_EFFECTS = {
   resetStars:   function() { st.bgStarsInit = false; },
   resetCrystal: function() { st._crystalPoints = []; },
-  resetMeta:    function() { st._metaBalls = []; }
+  resetMeta:    function() { st._metaBalls = []; },
+  resetMagma:   function() { st._magmaGL = null; }
 };
 
 function makeColorRow(label, currentValue, paramDef) {

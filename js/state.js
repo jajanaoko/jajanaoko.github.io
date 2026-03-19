@@ -185,6 +185,9 @@ export const AppState = {
     leafSize:    1.0,
     warpAmp:     0.4,
     warpFreq:    1.0,
+    magmaScale:  3.0,
+    magmaColor1: null,
+    magmaColor2: null,
     crystalFacets: 0.5,
     metaCount:   0.5,
     flowMode:   'default',
@@ -217,6 +220,7 @@ export const AppState = {
   // ── GL shader instances ───────────────────────────────────────
   _srGL: null,
   _grGL: null,
+  _magmaGL: null,
 
   // ── Crystal / metaball state ──────────────────────────────────
   _crystalPoints: [],

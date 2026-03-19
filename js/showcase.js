@@ -10,6 +10,7 @@ import { deselectAll } from './layers.js';
 import { setPlayState } from './timeline.js';
 import { showFrameSelector, hideFrameSelector } from './export.js';
 import { startVideoRecording } from './video-export.js';
+import { enterShowcase3D, exitShowcase3D } from './showcase-3d.js';
 
 // ── Enter / Exit ──────────────────────────────────────────────────────────────
 
@@ -27,6 +28,8 @@ export function enterShowcase() {
   // _tryStartGyro is set by mobile.js — activates gyro on Android / touch,
   // shows the iOS permission overlay, or starts mouse-driven tilt on desktop.
   window._tryStartGyro && window._tryStartGyro();
+  // Activate Three.js 3D overlay (falls back to 2D silently if WebGL unavailable)
+  setTimeout(enterShowcase3D, 200);
 }
 
 export function exitShowcase() {
@@ -34,6 +37,7 @@ export function exitShowcase() {
   document.body.classList.remove('gyro-awaiting-permission');
   hideFrameSelector();
   window._deactivateGyro && window._deactivateGyro();
+  exitShowcase3D();
   markDirty();
 }
 

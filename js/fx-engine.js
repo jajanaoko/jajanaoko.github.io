@@ -10,6 +10,7 @@ import { markDirty } from './app.js';
 import { drawBgFire }                          from './bg-fx-fire.js';
 import { drawBgSmokeRing }                     from './bg-fx-smokering.js';
 import { drawBgGodRays }                       from './bg-fx-godrays.js';
+import { drawBgMagma }                         from './bg-fx-magma.js';
 import { drawBgCosmic }                        from './bg-fx-cosmic.js';
 import { initCrystalPoints, drawBgCrystal }    from './bg-fx-crystal.js';
 import { initMetaBalls, drawBgMetaballs }       from './bg-fx-metaballs.js';
@@ -371,51 +372,6 @@ export function tickAndDrawParticles(card, cx, cy, cs, cr, t, dt) {
 
     var sz = pt.size * (1 - age * 0.4) * spellScale;
     drawParticleShape(pt, sz, t, spellScale);
-  }
-
-  // ── Generic aura v2 — multi-layer pulsing bloom + edge corona ─────
-  if (preset !== 'fire' && preset !== 'shadow' && intensity > 0.1) {
-    var rgb    = hexToRgb(s.color  ? s.color  : p.color);
-    var rgb2   = hexToRgb(s.color2 ? s.color2 : (p.color2 || p.color));
-    var pulse1 = 0.8 + 0.2 * Math.sin(t * 0.0032);       // slow breath
-    var pulse2 = 0.75 + 0.25 * Math.sin(t * 0.0019 + 1); // different frequency
-    var pulse3 = 0.6 + 0.4 * Math.abs(Math.sin(t * 0.005 + 2)); // faster flutter
-    st.ctx.save();
-    st.ctx.globalCompositeOperation = 'screen';
-    // Layer 1 — inner bright bloom
-    var a1 = 0.18 * intensity * pulse3;
-    var g1 = st.ctx.createRadialGradient(0, 0, 0, 0, 0, w * 0.55);
-    g1.addColorStop(0,   'rgba(' + rgb + ',' + a1 + ')');
-    g1.addColorStop(0.5, 'rgba(' + rgb + ',' + (a1 * 0.5) + ')');
-    g1.addColorStop(1,   'rgba(' + rgb + ',0)');
-    st.ctx.fillStyle = g1;
-    st.ctx.fillRect(-w, -h, w * 2, h * 2);
-    // Layer 2 — mid corona, secondary colour
-    var a2 = 0.11 * intensity * pulse1;
-    var g2 = st.ctx.createRadialGradient(0, 0, w * 0.3, 0, 0, w * 0.95);
-    g2.addColorStop(0,   'rgba(' + rgb2 + ',' + a2 + ')');
-    g2.addColorStop(0.6, 'rgba(' + rgb2 + ',' + (a2 * 0.3) + ')');
-    g2.addColorStop(1,   'rgba(' + rgb2 + ',0)');
-    st.ctx.fillStyle = g2;
-    st.ctx.fillRect(-w, -h, w * 2, h * 2);
-    // Layer 3 — outer soft haze
-    var a3 = 0.07 * intensity * pulse2;
-    var g3 = st.ctx.createRadialGradient(0, 0, w * 0.5, 0, 0, w * 1.2);
-    g3.addColorStop(0,   'rgba(' + rgb + ',' + a3 + ')');
-    g3.addColorStop(1,   'rgba(' + rgb + ',0)');
-    st.ctx.fillStyle = g3;
-    st.ctx.fillRect(-w * 1.3, -h * 1.3, w * 2.6, h * 2.6);
-    // Edge corona — glowing outline tracing the card border
-    var edgeAlpha = 0.35 * intensity * pulse3;
-    roundRectPath(st.ctx, -hw, -hh, w, h, r8);
-    st.ctx.strokeStyle = 'rgba(' + rgb + ',' + edgeAlpha + ')';
-    st.ctx.lineWidth = 3.5;
-    st.ctx.stroke();
-    roundRectPath(st.ctx, -hw - 3, -hh - 3, w + 6, h + 6, r8 + 3);
-    st.ctx.strokeStyle = 'rgba(' + rgb2 + ',' + (edgeAlpha * 0.5) + ')';
-    st.ctx.lineWidth = 5;
-    st.ctx.stroke();
-    st.ctx.restore();
   }
 
   st.ctx.restore();
@@ -1368,6 +1324,7 @@ export function drawBgFxCore(tctx, W, H, t) {
     else if (st.bgFx.type === 'metaballs') drawBgMetaballs(tctx, W, H, t, intensity);
     else if (st.bgFx.type === 'smokering') drawBgSmokeRing(tctx, W, H, t, intensity);
     else if (st.bgFx.type === 'godrays')   drawBgGodRays(tctx, W, H, t, intensity);
+    else if (st.bgFx.type === 'magma')     drawBgMagma(tctx, W, H, t, intensity);
 
     // Subtle vignette + center bloom for cohesion (cheap)
     if (st.bgFx.type) {
