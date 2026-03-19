@@ -24,19 +24,23 @@ var CARD_ASPECT = CARD_H / CARD_W;   // ≈ 1.4
 var CARD_THICK  = 0.018;  // realistic card thinness
 var CORNER_R    = 0.065;  // corner radius relative to card width (r/w = 8/110 ≈ 0.073)
 
-// Spring constants — rotation (heavy slab feel)
-var ROT_STIFFNESS = 0.022;   // sluggish response
-var ROT_DAMPING   = 0.92;    // lots of inertia
+// _gyroTiltX/Y are in the -24..+24 range (mobile.js _tiltStrength = 24).
+// Divide by this to get a normalised -1..1 before applying to physics.
+var GYRO_NORM = 24;
+
+// Spring constants — rotation
+var ROT_STIFFNESS = 0.016;   // very sluggish — heavy slab
+var ROT_DAMPING   = 0.94;    // settles slowly, barely overshoots
 
 // Spring constants — position drift
-var POS_STIFFNESS = 0.014;
-var POS_DAMPING   = 0.93;
+var POS_STIFFNESS = 0.010;
+var POS_DAMPING   = 0.95;
 
-// Max tilt angle in radians (~17°)
-var MAX_TILT     = 0.30;
+// Max tilt angle in radians (~7°) — subtle
+var MAX_TILT     = 0.12;
 // Max world-unit drift from rest position
-var MAX_DRIFT_XY = 0.30;
-var MAX_DRIFT_Z  = 0.09;
+var MAX_DRIFT_XY = 0.10;
+var MAX_DRIFT_Z  = 0.035;
 
 // ── Module state ──────────────────────────────────────────────────────────────
 
@@ -690,24 +694,25 @@ function _layoutCards() {
 function _tickPhysics(obj, dt) {
   var dtS = Math.min(dt, 50) / 1000;
 
-  var tiltX = window._gyroTiltX || 0;
-  var tiltY = window._gyroTiltY || 0;
+  // Normalise from the -24..+24 range mobile.js produces → -1..+1
+  var tiltX = Math.max(-1, Math.min(1, (window._gyroTiltX || 0) / GYRO_NORM));
+  var tiltY = Math.max(-1, Math.min(1, (window._gyroTiltY || 0) / GYRO_NORM));
 
-  // Idle breathing — fades when tilted
+  // Idle breathing — fades gently when tilted
   obj.breathT += dtS;
-  var breathMag = Math.max(0, 1 - Math.abs(tiltX) * 3 - Math.abs(tiltY) * 3);
-  var breathX = Math.sin(obj.breathT * 0.4  + obj._breathPhase)       * 0.009 * breathMag;
-  var breathY = Math.cos(obj.breathT * 0.31 + obj._breathPhase * 1.3) * 0.006 * breathMag;
+  var breathMag = Math.max(0, 1 - (Math.abs(tiltX) + Math.abs(tiltY)) * 1.5);
+  var breathX = Math.sin(obj.breathT * 0.38 + obj._breathPhase)        * 0.006 * breathMag;
+  var breathY = Math.cos(obj.breathT * 0.29 + obj._breathPhase * 1.3)  * 0.004 * breathMag;
 
   // ── Rotation spring ──────────────────────────────────────────────────────
-  var targetRotX = Math.max(-MAX_TILT, Math.min(MAX_TILT, tiltX * MAX_TILT)) + breathX;
-  var targetRotY = Math.max(-MAX_TILT, Math.min(MAX_TILT, tiltY * MAX_TILT)) + breathY;
-  // Z roll: leans slightly into the horizontal drift direction (feels physical)
-  var targetRotZ = tiltY * -0.08;
+  var targetRotX = tiltX * MAX_TILT + breathX;
+  var targetRotY = tiltY * MAX_TILT + breathY;
+  // Very subtle Z roll — leans slightly into horizontal drift
+  var targetRotZ = tiltY * -0.03;
 
   obj.velX += (targetRotX - obj.rotX) * ROT_STIFFNESS;
   obj.velY += (targetRotY - obj.rotY) * ROT_STIFFNESS;
-  obj.velZ += (targetRotZ - obj.rotZ) * (ROT_STIFFNESS * 0.5);
+  obj.velZ += (targetRotZ - obj.rotZ) * (ROT_STIFFNESS * 0.4);
   obj.velX *= ROT_DAMPING;
   obj.velY *= ROT_DAMPING;
   obj.velZ *= ROT_DAMPING;
@@ -715,12 +720,11 @@ function _tickPhysics(obj, dt) {
   obj.rotY += obj.velY;
   obj.rotZ += obj.velZ;
 
-  // ── Position drift — slab floats with tilt, springs back to rest ─────────
-  // tiltY (left/right lean) → X drift;  tiltX (forward/back) → Y drift
-  var targetPX = obj.targetX + Math.max(-MAX_DRIFT_XY, Math.min(MAX_DRIFT_XY,  tiltY * MAX_DRIFT_XY * 1.1));
-  var targetPY = obj.targetY + Math.max(-MAX_DRIFT_XY, Math.min(MAX_DRIFT_XY, -tiltX * MAX_DRIFT_XY * 0.85));
-  // Combined tilt magnitude pops the card slightly toward the camera
-  var tiltMag  = Math.min(1, Math.sqrt(tiltX * tiltX + tiltY * tiltY) * 2.2);
+  // ── Position drift — floats gently, springs back to rest ─────────────────
+  var targetPX = obj.targetX + tiltY * MAX_DRIFT_XY;
+  var targetPY = obj.targetY - tiltX * MAX_DRIFT_XY * 0.75;
+  // Tilt magnitude gives a tiny Z pop toward camera
+  var tiltMag  = Math.sqrt(tiltX * tiltX + tiltY * tiltY);
   var targetPZ = tiltMag * MAX_DRIFT_Z;
 
   obj.velPosX += (targetPX - obj.posX) * POS_STIFFNESS;
