@@ -683,18 +683,50 @@ export function initMobile() {
     var _baseDepth = 0.18;
     var _touchKickTimer = null;
 
-    // Single animation loop — lerps smooth toward target, writes globals + CSS
+    // Spring physics — velocity per axis
+    var _velX = 0, _velY = 0, _velZ = 0;
+    // Spring constants: stiffness controls how quickly position chases target;
+    // damping < 1 allows a small natural overshoot that settles organically.
+    var _stiffness = 0.11;   // lower = slower, more elastic
+    var _dampingXY = 0.74;   // lower = more overshoot / bounce
+    var _stiffnessZ = 0.09;  // Z is tighter — depth doesn't need to bounce
+    var _dampingZ   = 0.80;
+
+    // Micro-wobble — slow organic drift when card is near neutral
+    var _wobbleT = 0;
+
+    // Single animation loop — spring physics toward target, writes globals + CSS
     function tick() {
       _rafId = null;
       if (!window._gyroActive) return;
 
-      _smoothX += (_targetX - _smoothX) * 0.16;
-      _smoothY += (_targetY - _smoothY) * 0.16;
+      // ── Spring physics (X / Y) ──────────────────────────────────────────
+      _velX += (_targetX - _smoothX) * _stiffness;
+      _velY += (_targetY - _smoothY) * _stiffness;
+      _velX *= _dampingXY;
+      _velY *= _dampingXY;
+      _smoothX += _velX;
+      _smoothY += _velY;
 
-      _smoothZ += (_targetZ - _smoothZ) * 0.14;
+      // ── Spring physics (Z / depth) ──────────────────────────────────────
+      _velZ += (_targetZ - _smoothZ) * _stiffnessZ;
+      _velZ *= _dampingZ;
+      _smoothZ += _velZ;
 
-      window._gyroTiltX = _smoothX * _tiltStrength;
-      window._gyroTiltY = _smoothY * _tiltStrength;
+      // ── Micro-wobble — breathing idle motion ────────────────────────────
+      // Strength fades out as the card tilts away from neutral, so intentional
+      // tilts feel clean while a resting card feels alive.
+      _wobbleT += 0.018;
+      var _mag = Math.sqrt(_smoothX * _smoothX + _smoothY * _smoothY);
+      var _wStr = Math.max(0, 1 - _mag * 5.5) * 0.024;
+      var wX = Math.sin(_wobbleT * 0.71 + 1.30) * _wStr;
+      var wY = Math.cos(_wobbleT * 0.53 + 0.83) * _wStr;
+
+      // ── Export tilt velocity so renderer can react to fast motion ───────
+      window._gyroVelocity = Math.sqrt(_velX * _velX + _velY * _velY);
+
+      window._gyroTiltX = (_smoothX + wX) * _tiltStrength;
+      window._gyroTiltY = (_smoothY + wY) * _tiltStrength;
       window._gyroDepth = _smoothZ;
 
       // Keep the background fixed in showcase/view mode.
@@ -705,8 +737,13 @@ export function initMobile() {
 
       markDirty();
 
-      // Keep ticking until settled
-      if (Math.abs(_targetX - _smoothX) > 0.001 || Math.abs(_targetY - _smoothY) > 0.001 || Math.abs(_targetZ - _smoothZ) > 0.001) {
+      // Keep ticking while spring is unsettled OR wobble is active (near neutral)
+      var settled = Math.abs(_velX) < 0.0003 && Math.abs(_velY) < 0.0003 &&
+                    Math.abs(_velZ) < 0.0003 &&
+                    Math.abs(_targetX - _smoothX) < 0.0005 &&
+                    Math.abs(_targetY - _smoothY) < 0.0005 &&
+                    Math.abs(_targetZ - _smoothZ) < 0.0005;
+      if (!settled || _wStr > 0.001) {
         _rafId = requestAnimationFrame(tick);
       }
     }
@@ -807,7 +844,9 @@ export function initMobile() {
     // ── Lifecycle ─────────────────────────────────────────────────────────
     function activate() {
       if (window._gyroActive) return;
-      _targetX = 0; _targetY = 0; _targetZ = _baseDepth; _smoothX = 0; _smoothY = 0; _smoothZ = _baseDepth;
+      _targetX = 0; _targetY = 0; _targetZ = _baseDepth;
+      _smoothX = 0; _smoothY = 0; _smoothZ = _baseDepth;
+      _velX = 0; _velY = 0; _velZ = 0; _wobbleT = 0;
       _sensorZeroCount = 0;
       window._sensorBaseG = undefined;
       window._sensorBaseB = undefined;
@@ -830,7 +869,10 @@ export function initMobile() {
       window._gyroActive = false;
       window._gyroTiltX  = 0;
       window._gyroTiltY  = 0;
-      _targetX = 0; _targetY = 0; _targetZ = _baseDepth; _smoothX = 0; _smoothY = 0; _smoothZ = _baseDepth;
+      _targetX = 0; _targetY = 0; _targetZ = _baseDepth;
+      _smoothX = 0; _smoothY = 0; _smoothZ = _baseDepth;
+      _velX = 0; _velY = 0; _velZ = 0;
+      window._gyroVelocity = 0;
       if (_touchKickTimer) { clearTimeout(_touchKickTimer); _touchKickTimer = null; }
       if (_rafId) { cancelAnimationFrame(_rafId); _rafId = null; }
       if (st.canvasWrap) { st.canvasWrap.dataset.gyro = '0'; st.canvasWrap.style.transform = ''; }

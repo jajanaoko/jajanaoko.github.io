@@ -157,9 +157,15 @@ function drawSurfaceFX(c, t, w, h, r, hov, isExport) {
   roundRectPath(st.ctx, -w / 2, -h / 2, w, h, r);
   st.ctx.clip();
 
+  // Velocity flash — momentary brightness spike when moving fast (foil-catch effect)
+  // Decays smoothly via the lerp in updateHoverPhysics; raw velocity drives it here.
+  var _velFlash = (window._gyroActive && window._gyroVelocity != null)
+    ? Math.min(0.55, window._gyroVelocity * 9)
+    : 0;
+
   // Glare overlay
   if (c.glare && c.glare.on) {
-    var gi = (c.glare.intensity || 1);
+    var gi = (c.glare.intensity || 1) * (1 + _velFlash * 0.7);
     var tiltFrac = hov.tilt / 6;
     // Gyro shifts glare both horizontally (tiltX) and vertically (tiltY)
     var gyroGlareY = window._gyroActive ? ((window._gyroTiltY || 0) / 10) : 0;
@@ -185,8 +191,8 @@ function drawSurfaceFX(c, t, w, h, r, hov, isExport) {
     var shWidth = sh.width != null ? sh.width : 0.2;
     var shSpeed = sh.speed != null ? sh.speed : 0.7;
     var shBands = Math.round(sh.bands != null ? sh.bands : 2);
-    // Tilt-reactive brightness boost
-    var shTiltBoost = 1 + Math.abs(hov.tilt / 6) * 0.8;
+    // Tilt-reactive brightness boost + velocity flash (fast motion = foil catch)
+    var shTiltBoost = 1 + Math.abs(hov.tilt / 6) * 0.8 + _velFlash * 0.9;
     var shOpacityBoosted = shOpacity * shTiltBoost;
     st.ctx.save();
     st.ctx.globalCompositeOperation = shBlend;
@@ -594,6 +600,14 @@ export function drawCard(c, t, isExport) {
   st.ctx.translate(gyroShiftX, gyroShiftY + depthShiftY);
   st.ctx.rotate((cr + hoverTilt) * Math.PI / 180);
   st.ctx.scale(cs * elevScale * gyroDepthScaleX * depthScale, cs * elevScale * gyroDepthScaleY * depthScale);
+  // Perspective lean — simulates one edge receding when the card tilts.
+  // Applied in card-local space (after rotate+scale) so it always shears
+  // along the card's own axes regardless of the card's rotation angle.
+  // skewX: left/right tilt shears horizontally (gyroAxisY drives X lean)
+  // skewY: forward/back tilt shears vertically  (gyroAxisX drives Y lean)
+  if (!isExport && window._gyroActive && (gyroAxisX !== 0 || gyroAxisY !== 0)) {
+    st.ctx.transform(1, -gyroAxisX * 0.038, gyroAxisY * 0.052, 1, 0, 0);
+  }
 
   // Drop Shadow — rendered before card body so the card image covers the silhouette
   if (c.shadow && c.shadow.on) {
