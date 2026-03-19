@@ -47,6 +47,7 @@ var ro = new ResizeObserver(function(entries) {
 document.addEventListener('visibilitychange', function() {
   if (document.visibilityState === 'visible') {
     st.needsRedraw = true;
+    if (!st.canvasWrap) return;
     var cssW = st.canvasWrap.clientWidth;
     var cssH = st.canvasWrap.clientHeight;
     if (cssW > 10 && cssH > 10) {

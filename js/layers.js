@@ -665,7 +665,7 @@ export function cardAtPoint(wx, wy) {
 
 // Check which resize handle (if any) is at a given point
 export function resizeHandleAtPoint(obj, wx, wy) {
-  if (!obj || obj.kind !== 'text' && obj.kind !== 'rect') return null;
+  if (!obj || (obj.kind !== 'text' && obj.kind !== 'rect')) return null;
   
   var handleSize = 8;
   var objW = obj.width || 100;

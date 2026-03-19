@@ -24,12 +24,19 @@ var CARD_ASPECT = CARD_H / CARD_W;   // ≈ 1.4
 var CARD_THICK  = 0.018;  // realistic card thinness
 var CORNER_R    = 0.065;  // corner radius relative to card width (r/w = 8/110 ≈ 0.073)
 
-// Spring constants for gyro-driven rotation
-var ROT_STIFFNESS = 0.055;
-var ROT_DAMPING   = 0.84;
+// Spring constants — rotation (heavy slab feel)
+var ROT_STIFFNESS = 0.022;   // sluggish response
+var ROT_DAMPING   = 0.92;    // lots of inertia
 
-// Max tilt angle in radians (~22°)
-var MAX_TILT = 0.38;
+// Spring constants — position drift
+var POS_STIFFNESS = 0.014;
+var POS_DAMPING   = 0.93;
+
+// Max tilt angle in radians (~17°)
+var MAX_TILT     = 0.30;
+// Max world-unit drift from rest position
+var MAX_DRIFT_XY = 0.30;
+var MAX_DRIFT_Z  = 0.09;
 
 // ── Module state ──────────────────────────────────────────────────────────────
 
@@ -686,25 +693,53 @@ function _tickPhysics(obj, dt) {
   var tiltX = window._gyroTiltX || 0;
   var tiltY = window._gyroTiltY || 0;
 
-  // Idle breathing — fades out when tilted
+  // Idle breathing — fades when tilted
   obj.breathT += dtS;
-  var breathMag = Math.max(0, 1 - Math.abs(tiltX) * 4 - Math.abs(tiltY) * 4);
-  var breathX = Math.sin(obj.breathT * 0.4  + obj._breathPhase)       * 0.012 * breathMag;
-  var breathY = Math.cos(obj.breathT * 0.31 + obj._breathPhase * 1.3) * 0.008 * breathMag;
+  var breathMag = Math.max(0, 1 - Math.abs(tiltX) * 3 - Math.abs(tiltY) * 3);
+  var breathX = Math.sin(obj.breathT * 0.4  + obj._breathPhase)       * 0.009 * breathMag;
+  var breathY = Math.cos(obj.breathT * 0.31 + obj._breathPhase * 1.3) * 0.006 * breathMag;
 
-  var targetRotX = Math.max(-MAX_TILT, Math.min(MAX_TILT, tiltX * MAX_TILT * 1.4)) + breathX;
-  var targetRotY = Math.max(-MAX_TILT, Math.min(MAX_TILT, tiltY * MAX_TILT * 1.4)) + breathY;
+  // ── Rotation spring ──────────────────────────────────────────────────────
+  var targetRotX = Math.max(-MAX_TILT, Math.min(MAX_TILT, tiltX * MAX_TILT)) + breathX;
+  var targetRotY = Math.max(-MAX_TILT, Math.min(MAX_TILT, tiltY * MAX_TILT)) + breathY;
+  // Z roll: leans slightly into the horizontal drift direction (feels physical)
+  var targetRotZ = tiltY * -0.08;
 
   obj.velX += (targetRotX - obj.rotX) * ROT_STIFFNESS;
   obj.velY += (targetRotY - obj.rotY) * ROT_STIFFNESS;
+  obj.velZ += (targetRotZ - obj.rotZ) * (ROT_STIFFNESS * 0.5);
   obj.velX *= ROT_DAMPING;
   obj.velY *= ROT_DAMPING;
+  obj.velZ *= ROT_DAMPING;
   obj.rotX += obj.velX;
   obj.rotY += obj.velY;
+  obj.rotZ += obj.velZ;
+
+  // ── Position drift — slab floats with tilt, springs back to rest ─────────
+  // tiltY (left/right lean) → X drift;  tiltX (forward/back) → Y drift
+  var targetPX = obj.targetX + Math.max(-MAX_DRIFT_XY, Math.min(MAX_DRIFT_XY,  tiltY * MAX_DRIFT_XY * 1.1));
+  var targetPY = obj.targetY + Math.max(-MAX_DRIFT_XY, Math.min(MAX_DRIFT_XY, -tiltX * MAX_DRIFT_XY * 0.85));
+  // Combined tilt magnitude pops the card slightly toward the camera
+  var tiltMag  = Math.min(1, Math.sqrt(tiltX * tiltX + tiltY * tiltY) * 2.2);
+  var targetPZ = tiltMag * MAX_DRIFT_Z;
+
+  obj.velPosX += (targetPX - obj.posX) * POS_STIFFNESS;
+  obj.velPosY += (targetPY - obj.posY) * POS_STIFFNESS;
+  obj.velPosZ += (targetPZ - obj.posZ) * (POS_STIFFNESS * 0.6);
+  obj.velPosX *= POS_DAMPING;
+  obj.velPosY *= POS_DAMPING;
+  obj.velPosZ *= POS_DAMPING;
+  obj.posX += obj.velPosX;
+  obj.posY += obj.velPosY;
+  obj.posZ += obj.velPosZ;
 
   if (obj.group) {
     obj.group.rotation.x = -obj.rotX;
     obj.group.rotation.y =  obj.rotY;
+    obj.group.rotation.z =  obj.rotZ;
+    obj.group.position.x =  obj.posX;
+    obj.group.position.y =  obj.posY;
+    obj.group.position.z =  obj.posZ;
   }
 }
 
@@ -849,7 +884,10 @@ export function enterShowcase3D() {
       faceMat:      null,
       sheenMesh:    null,
       sheenMat:     null,
-      rotX: 0, rotY: 0, velX: 0, velY: 0,
+      rotX: 0, rotY: 0, rotZ: 0,
+      velX: 0, velY: 0, velZ: 0,
+      posX: 0, posY: 0, posZ: 0,
+      velPosX: 0, velPosY: 0, velPosZ: 0,
       breathT: i * 0.8, _breathPhase: i * 1.3,
       targetX: 0, targetY: 0,
       partState:  null,
@@ -865,11 +903,14 @@ export function enterShowcase3D() {
 
   _layoutCards();
 
+  // Seed position state from layout so physics starts at rest
   for (var j = 0; j < _cardObjs.length; j++) {
     var o = _cardObjs[j];
+    o.posX = o.targetX;
+    o.posY = o.targetY;
+    o.posZ = 0;
     if (o.group) {
-      o.group.position.x = o.targetX;
-      o.group.position.y = o.targetY;
+      o.group.position.set(o.posX, o.posY, o.posZ);
     }
   }
 
