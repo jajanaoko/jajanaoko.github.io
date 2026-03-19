@@ -1,0 +1,393 @@
+/* ===== mobile.css ===== */
+
+  /* ── Mobile bottom navigation bar ── */
+  #mobile-nav {
+    display: none;
+    position: fixed; bottom: 0; left: 0; right: 0; z-index: 200;
+    height: 60px; background: var(--panel); border-top: 1px solid var(--border);
+    flex-direction: row; align-items: stretch;
+  }
+  .mnav-btn {
+    flex: 1; display: flex; flex-direction: column; align-items: center;
+    justify-content: center; gap: 3px; background: none; border: none;
+    color: var(--muted); font-size: 18px; cursor: pointer;
+    transition: color 0.15s, background 0.15s;
+    font-family: var(--font-body); padding: 0;
+    border-right: 1px solid var(--border);
+    -webkit-tap-highlight-color: transparent;
+    min-width: 0;
+  }
+  .mnav-btn:last-child { border-right: none; }
+  .mnav-btn.active { color: var(--gold); background: rgba(201,168,76,0.07); }
+  .mnav-btn:active { background: rgba(255,255,255,0.06); }
+  .mnav-btn span { font-size: 9px; letter-spacing: 0.06em; font-family: var(--font-head); text-transform: uppercase; }
+
+  /* ── Drawer overlay (mobile) ── */
+  #drawer-overlay {
+    display: none; position: fixed; inset: 0; z-index: 150;
+    background: rgba(0,0,0,0.28); backdrop-filter: blur(1px);
+    opacity: 0; transition: opacity 0.25s;
+  }
+  #drawer-overlay.visible { opacity: 1; }
+
+  /* ── Gyro / Float showcase effects ── */
+
+  /* Idle float: canvas-wrap gently bobs when showcase is active */
+  @keyframes ag-float {
+    0%   { transform: translateY(0px)    rotate(-0.4deg); }
+    28%  { transform: translateY(-9px)   rotate(0.5deg);  }
+    55%  { transform: translateY(-5px)   rotate(-0.2deg); }
+    78%  { transform: translateY(-12px)  rotate(0.6deg);  }
+    100% { transform: translateY(0px)    rotate(-0.4deg); }
+  }
+  body.showcase-mode #canvas-wrap {
+    animation: ag-float 6.4s ease-in-out infinite;
+  }
+  body.showcase-mode #canvas-wrap[data-gyro="1"] {
+    animation: none;
+  }
+
+  /* iOS permission overlay */
+  #gyro-permission-overlay {
+    display: none;
+    position: fixed; inset: 0; z-index: 9000;
+    background: rgba(10,10,15,0.88);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    align-items: center; justify-content: center;
+    flex-direction: column; gap: 18px;
+    padding: 32px;
+    text-align: center;
+  }
+  body.gyro-awaiting-permission #gyro-permission-overlay { display: flex; }
+  #gyro-permission-overlay .gyro-icon {
+    font-size: 48px; line-height: 1;
+    animation: ag-float 3s ease-in-out infinite;
+  }
+  #gyro-permission-overlay h3 {
+    font-family: 'Cinzel', serif;
+    color: var(--gold); font-size: 17px; margin: 0;
+  }
+  #gyro-permission-overlay p {
+    color: var(--text); font-size: 13px; margin: 0; opacity: 0.7; line-height: 1.5;
+  }
+  #gyro-permission-overlay .gyro-allow-btn {
+    background: transparent;
+    border: 1px solid var(--gold);
+    color: var(--gold);
+    font-family: 'Cinzel', serif;
+    font-size: 13px; letter-spacing: 0.08em;
+    padding: 12px 28px; border-radius: 22px;
+    cursor: pointer; margin-top: 4px;
+  }
+  #gyro-permission-overlay .gyro-skip-btn {
+    background: none; border: none; color: var(--muted);
+    font-size: 12px; cursor: pointer; padding: 4px 12px;
+  }
+
+  /* ── Showcase (hide UI) mode ── */
+  #btn-showcase {
+    display: none;
+    background: none; border: 1px solid var(--border); color: var(--muted);
+    padding: 4px 8px; border-radius: 4px; font-size: 11px; cursor: pointer;
+    font-family: var(--font-body); transition: all 0.15s;
+    -webkit-tap-highlight-color: transparent;
+  }
+  #btn-showcase:active { color: var(--gold); border-color: var(--gold); }
+
+  /* Showcase mode: hide all UI, only canvas visible */
+  body.showcase-mode #topbar,
+  body.showcase-mode #mobile-nav,
+  body.showcase-mode #left-panel,
+  body.showcase-mode #right-panel,
+  body.showcase-mode .resize-handle-v,
+  body.showcase-mode #bottom-panel { display: none !important; }
+  body.showcase-mode #workspace { height: 100vh !important; }
+  body.showcase-mode #canvas-col { height: 100vh !important; }
+  body.showcase-mode #canvas-wrap { height: 100vh !important; }
+
+  /* Showcase exit button */
+  #showcase-exit {
+    display: none; position: fixed; bottom: 16px; left: 50%;
+    transform: translateX(-50%); z-index: 9000;
+    background: rgba(10,10,15,0.85); border: 1px solid var(--gold);
+    color: var(--gold-light); font-family: var(--font-head); font-size: 11px;
+    letter-spacing: 0.1em; padding: 8px 20px; border-radius: 24px;
+    cursor: pointer; backdrop-filter: blur(8px);
+    opacity: 0; transition: opacity 0.3s;
+    -webkit-tap-highlight-color: transparent;
+  }
+  body.showcase-mode #showcase-exit { display: block; opacity: 1; }
+
+  /* Pinch-zoom hint (shown briefly on first touch) */
+  #touch-hint {
+    position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%);
+    background: rgba(10,10,15,0.8); border: 1px solid var(--border);
+    color: var(--muted); font-size: 11px; font-family: var(--font-body);
+    padding: 6px 14px; border-radius: 20px; pointer-events: none;
+    opacity: 0; transition: opacity 0.5s; z-index: 30;
+    white-space: nowrap; backdrop-filter: blur(4px);
+  }
+  #touch-hint.show { opacity: 1; }
+
+  /* ── Inspector pill button (mobile) ── */
+  #inspector-pull-handle {
+    display: none; /* shown via JS when card selected */
+    position: fixed;
+    /* left/top driven by JS to track card position */
+    z-index: 155;
+    height: 36px;
+    padding: 0 14px;
+    background: rgba(18,14,28,0.92);
+    border: 1px solid var(--gold);
+    border-radius: 18px;
+    flex-direction: row;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    cursor: pointer;
+    box-shadow: 0 4px 18px rgba(0,0,0,0.6), 0 0 0 1px rgba(201,168,76,0.2);
+    transition: background 0.15s, box-shadow 0.15s, opacity 0.15s;
+    -webkit-tap-highlight-color: transparent;
+    font-family: var(--font-body);
+    font-size: 12px;
+    color: var(--gold-light);
+    letter-spacing: 0.04em;
+    white-space: nowrap;
+    transform: translateX(-50%);  /* center on left anchor */
+    pointer-events: auto;
+  }
+  #inspector-pull-handle:active {
+    background: rgba(201,168,76,0.18);
+    box-shadow: 0 2px 10px rgba(0,0,0,0.4), 0 0 0 2px rgba(201,168,76,0.4);
+  }
+  /* Hide handle when right drawer is open */
+  body.right-drawer-open #inspector-pull-handle { display: none !important; }
+
+  /* ── Responsive breakpoint: ≤768px ── */
+  @media (max-width: 768px) {
+    /* Show mobile nav */
+    #mobile-nav { display: flex; }
+    #btn-showcase { display: inline-flex; align-items: center; gap: 5px; }
+
+    /* Compensate for bottom nav (60px) */
+    #app { padding-bottom: 60px; }
+
+    /* Topbar: compact */
+    #topbar {
+      padding: 0 10px;
+      height: 44px; min-height: 44px; flex: 0 0 44px;
+    }
+    #topbar .title { font-size: 11px; letter-spacing: 0.08em; }
+    #topbar .right { gap: 6px; }
+
+    /* Hide panels from normal flow — they become drawers */
+    #left-panel, #right-panel {
+      position: fixed !important;
+      top: 44px; bottom: 0;
+      z-index: 160;
+      transition: transform 0.28s cubic-bezier(0.4,0,0.2,1) !important;
+      max-width: min(300px, 82vw) !important;
+      flex: none !important;
+      width: min(300px, 82vw) !important;
+      box-shadow: 4px 0 32px rgba(0,0,0,0.5);
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+    #left-panel {
+      left: 0; transform: translateX(-110%);
+    }
+    #left-panel.drawer-open { transform: translateX(0); }
+
+    #right-panel {
+      right: 0; transform: translateX(110%);
+      box-shadow: -4px 0 32px rgba(0,0,0,0.5);
+    }
+    #right-panel.drawer-open { transform: translateX(0); }
+
+    /* panel-inner fills panel and scrolls; padding-bottom clears the nav */
+    #left-panel .panel-inner,
+    #right-panel .panel-inner {
+      flex: 1 1 0;
+      overflow-y: auto;
+      overflow-x: hidden;
+      padding: 0 12px 100px 12px;
+      -webkit-overflow-scrolling: touch;
+      min-height: 0;
+    }
+
+    /* Hide resize handles on mobile */
+    .resize-handle-v { display: none; }
+
+    /* Canvas col fills everything */
+    #canvas-col { width: 100% !important; flex: 1 1 100% !important; }
+
+    /* Bottom panel — sits above the nav, add padding so content is never clipped */
+    #bottom-panel {
+      flex: 0 0 auto !important;
+      max-height: 60vh !important;
+      padding-bottom: 12px;
+    }
+    /* Make resize handle prominent and easy to grab on mobile */
+    #bottom-resize-handle {
+      flex: 0 0 36px !important;
+      height: 36px !important;
+      min-height: 36px !important;
+      background: var(--panel) !important;
+      border-bottom: 1px solid var(--border) !important;
+    }
+    #bottom-resize-handle::before {
+      width: 52px !important;
+      height: 5px !important;
+      border-radius: 3px !important;
+    }
+    #toolbar-row {
+      padding: 0 8px;
+      gap: 6px;
+      overflow-x: auto;
+      flex-wrap: nowrap;
+      -webkit-overflow-scrolling: touch;
+      scrollbar-width: none;
+      min-height: 58px;
+      height: 58px;
+    }
+    #toolbar-row::-webkit-scrollbar { display: none; }
+    /* Mobile toolbar: only zoom + layout buttons visible by default */
+    #toolbar-row #btn-timeline-toggle,
+    #toolbar-row #btn-orbit,
+    #toolbar-row #btn-reset-cam,
+    #toolbar-row .tb-sep:last-of-type { display: none; }
+    /* combo strip: slightly smaller text on mobile */
+    #combo-strip { padding: 4px 8px; gap: 5px; }
+    #combo-strip .btn { font-size: 10px; padding: 3px 7px; }
+    /* Playback row and timeline on mobile only show when expanded */
+    #playback-row { display: none !important; }
+    #bottom-panel.timeline-expanded #playback-row { display: flex !important; }
+    #bottom-panel.timeline-expanded #bottom-resize-handle { display: flex !important; }
+
+    /* ── Timeline expanded: bigger scenes on mobile ── */
+    #bottom-panel.timeline-expanded {
+      flex: 0 0 340px !important;
+    }
+    /* Make timeline header scenes row taller and easier to tap */
+    #timeline-header {
+      padding: 8px 10px;
+      flex-wrap: nowrap;
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+      gap: 6px;
+    }
+    #timeline-header::-webkit-scrollbar { display: none; }
+    .scene-slot {
+      min-height: 56px !important;
+      min-width: 56px !important;
+      flex: 0 0 56px !important;
+      max-width: 56px !important;
+      padding: 6px 4px !important;
+    }
+    .scene-slot-num { font-size: 10px !important; }
+    .scene-slot-add-icon { font-size: 16px !important; }
+    .clear-seq-btn { padding: 6px 12px !important; font-size: 11px !important; }
+    /* Show seq-tracks when timeline is expanded */
+    #seq-tracks-wrap { display: none; }
+    #bottom-panel.timeline-expanded #seq-tracks-wrap { display: block; }
+
+    #playback-row {
+      padding: 0 8px;
+      gap: 6px;
+      height: 52px;
+      min-height: 52px;
+    }
+
+    /* Touch-friendly button sizing */
+    .btn.small {
+      min-height: 40px;
+      padding: 0 14px;
+      font-size: 12px;
+    }
+    .btn.small.icon-btn {
+      min-width: 40px;
+      min-height: 40px;
+      padding: 0;
+    }
+
+    /* Larger touch targets for sliders */
+    input[type=range] { height: 6px; }
+    input[type=range]::-webkit-slider-thumb { width: 22px; height: 22px; }
+
+    /* Layer items: taller touch targets */
+    .layer-item { min-height: 44px; padding: 6px 8px; }
+    .layer-btn { width: 32px; height: 32px; }
+
+    /* All buttons inside panels: minimum 44px tall */
+    #left-panel button, #right-panel button {
+      min-height: 44px;
+    }
+    /* But don't blow up tiny icon controls */
+    #right-panel .toggle { min-height: unset; }
+    #right-panel .color-swatch { min-height: unset; }
+
+    /* Scrubber */
+    .scrubber-wrap { min-width: 60px; }
+
+    /* Toast: above mobile nav */
+    #toast { bottom: 72px; }
+  }
+  }
+
+  /* Very small phones */
+  @media (max-width: 420px) {
+    #topbar .title { max-width: 130px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    #topbar #btn-export { font-size: 10px; padding: 3px 7px; }
+    #topbar #btn-clear-all { display: none; }
+    #autosave-indicator { display: none !important; }
+  }
+
+  /* ── Panel close button (mobile only) ── */
+  .panel-close-btn {
+    display: none;
+  }
+  @media (max-width: 768px) {
+    .panel-close-btn {
+      display: flex;
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      width: 100%;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 14px;
+      margin-bottom: 8px;
+      background: var(--panel);
+      border-bottom: 1px solid var(--border);
+      box-sizing: border-box;
+    }
+    .panel-close-btn .panel-close-title {
+      font-family: var(--font-head);
+      font-size: 10px;
+      letter-spacing: 0.15em;
+      color: var(--muted);
+      text-transform: uppercase;
+    }
+    .panel-close-btn .panel-close-x {
+      width: 36px; height: 36px;
+      display: flex; align-items: center; justify-content: center;
+      background: rgba(255,255,255,0.05);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--text);
+      font-size: 18px;
+      cursor: pointer;
+      -webkit-tap-highlight-color: transparent;
+      flex-shrink: 0;
+    }
+    .panel-close-btn .panel-close-x:active {
+      background: rgba(255,255,255,0.12);
+    }
+    /* Offset panel inner padding since close btn provides top spacing */
+    #left-panel .panel-inner,
+    #right-panel .panel-inner {
+      padding-top: 0 !important;
+    }
+  }

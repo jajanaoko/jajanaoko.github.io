@@ -1,0 +1,261 @@
+/* ===== components.css ===== */
+
+  .btn {
+    font-family: var(--font-body); font-size: 12px; font-weight: 600;
+    background: var(--panel2); border: 1px solid var(--border);
+    color: var(--text); padding: 5px 10px; border-radius: 4px;
+    cursor: pointer; transition: all 0.15s; white-space: nowrap;
+  }
+  .btn:hover { border-color: var(--gold); color: var(--gold-light); }
+  .btn.active, .btn.gold { background: var(--gold); color: #0A0A0F; border-color: var(--gold); }
+  .btn.amber { background: transparent; border-color: var(--amber); color: var(--amber); }
+  .btn.danger:hover { border-color: #E05555; color: #E05555; }
+  .btn.small { padding: 3px 8px; font-size: 11px; }
+  .btn.icon-btn { padding: 5px 8px; min-width: 30px; text-align: center; }
+  .btn-row { display: flex; gap: 4px; flex-wrap: wrap; }
+
+  input[type=range] {
+    -webkit-appearance: none; width: 100%; height: 3px;
+    background: var(--border); border-radius: 2px; outline: none; cursor: pointer;
+  }
+  input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none; width: 12px; height: 12px;
+    border-radius: 50%; background: var(--gold); cursor: pointer;
+  }
+  input[type=color] {
+    width: 28px; height: 24px; border: 1px solid var(--border);
+    background: none; cursor: pointer; border-radius: 3px; padding: 1px;
+  }
+  .slider-row { display: flex; align-items: center; gap: 4px; margin-bottom: 6px; }
+  .slider-row label { font-size: 11px; color: var(--muted); flex: 0 0 56px; white-space: nowrap; }
+  .slider-row input[type=range] { flex: 1; min-width: 40px; }
+  .slider-row .val { display: none; } /* hidden — replaced by num-input */
+  .slider-row .num-input {
+    flex: 0 0 46px; width: 46px; background: var(--panel2); border: 1px solid var(--border);
+    color: var(--gold-light); font-family: var(--font-body); font-size: 11px;
+    padding: 2px 4px; border-radius: 3px; outline: none; text-align: right;
+    -moz-appearance: textfield;
+  }
+  .slider-row .num-input::-webkit-inner-spin-button,
+  .slider-row .num-input::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+  .slider-row .num-input:focus { border-color: var(--gold); color: var(--gold-light); }
+  .pm-btn {
+    flex: 0 0 16px; width: 16px; height: 18px; border-radius: 3px;
+    border: 1px solid var(--border); background: var(--panel2); color: var(--muted);
+    cursor: pointer; font-size: 11px; line-height: 1; padding: 0;
+    display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+    transition: color 0.12s, border-color 0.12s; user-select: none;
+  }
+  .pm-btn:hover { color: var(--gold-light); border-color: var(--gold); }
+
+  .divider { height: 1px; background: var(--border); margin: 10px 0; }
+
+  /* Tab switcher */
+  .tab-row { display: flex; gap: 2px; margin-bottom: 8px; }
+  .tab {
+    flex: 1; text-align: center; font-family: var(--font-head); font-size: 10px;
+    font-weight: 600; letter-spacing: 0.1em; padding: 5px; border-radius: 3px;
+    cursor: pointer; background: var(--panel2); border: 1px solid var(--border);
+    color: var(--muted); transition: all 0.15s;
+  }
+  .tab.active { background: var(--gold); color: #0A0A0F; border-color: var(--gold); }
+
+  /* Asset grid */
+  .asset-grid {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 4px; margin-bottom: 8px;
+  }
+  .asset-thumb {
+    aspect-ratio: 110/154; border-radius: 4px; overflow: hidden;
+    border: 1px solid var(--border); cursor: pointer; transition: border-color 0.15s;
+    position: relative; background: var(--panel2);
+  }
+  .asset-thumb:hover { border-color: var(--gold); }
+  .asset-thumb img { width: 100%; height: 100%; object-fit: cover; pointer-events: none; }
+  .asset-thumb.dragging { opacity: 0.5; }
+
+  /* Background swatches */
+  .bg-swatch-row { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 8px; align-items: center; }
+  .bg-swatch {
+    width: 40px; height: 40px; border-radius: 6px; cursor: pointer; flex-shrink: 0;
+    border: 2px solid var(--border);
+    transition: border-color 0.15s, transform 0.12s;
+  }
+  .bg-swatch:hover { transform: scale(1.06); border-color: rgba(201,168,76,0.5); }
+  .bg-swatch.active { border-color: var(--gold); box-shadow: 0 0 0 1px var(--gold); }
+  .bg-swatch-add {
+    width: 40px; height: 40px; border-radius: 6px; cursor: pointer; flex-shrink: 0;
+    border: 2px dashed rgba(255,255,255,0.18); background: transparent;
+    color: var(--muted); font-size: 20px; line-height: 1;
+    display: flex; align-items: center; justify-content: center;
+    transition: border-color 0.15s, color 0.15s;
+  }
+  .bg-swatch-add:hover { border-color: var(--gold); color: var(--gold); }
+
+  /* Inline picker panel */
+  .bg-picker-panel {
+    display: none;
+    background: var(--panel2); border: 1px solid var(--border);
+    border-radius: 6px; padding: 8px; margin-bottom: 10px;
+  }
+  .bg-picker-panel.open { display: block; }
+  .bg-picker-tabs { display: flex; gap: 4px; margin-bottom: 8px; }
+
+  /* Small gradient preset swatches inside picker */
+  .bg-swatch-sm {
+    width: 34px; height: 24px; border-radius: 4px; cursor: pointer; flex-shrink: 0;
+    border: 2px solid var(--border); transition: border-color 0.15s, transform 0.1s;
+  }
+  .bg-swatch-sm:hover { transform: scale(1.1); border-color: rgba(201,168,76,0.5); }
+  .bg-swatch-sm.active { border-color: var(--gold); }
+
+  /* Card surface preview */
+  .surface-preview {
+    width: 100%; aspect-ratio: 110/154; border-radius: 6px;
+    background: var(--panel2); border: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: center;
+    overflow: hidden; margin-bottom: 6px;
+  }
+  .surface-preview img { width: 100%; height: 100%; object-fit: cover; }
+  .surface-preview .empty-hint { font-size: 10px; color: var(--muted); text-align: center; padding: 10px; }
+
+  /* Badge */
+  .badge {
+    font-family: var(--font-body); font-size: 11px; font-weight: 600;
+    background: var(--panel2); border: 1px solid var(--border);
+    color: var(--gold-light); padding: 2px 8px; border-radius: 10px;
+  }
+  .badge.amber { color: var(--amber); border-color: var(--amber); }
+
+  /* Toolbar separator */
+  .tb-sep { width: 1px; height: 24px; background: var(--border); margin: 0 4px; }
+  .tb-spacer { flex: 1; }
+
+  /* Toast */
+  #toast {
+    position: fixed; bottom: 60px; left: 50%; transform: translateX(-50%) translateY(20px);
+    background: var(--panel2); border: 1px solid var(--gold);
+    color: var(--gold-light); font-family: var(--font-body); font-size: 13px;
+    padding: 8px 18px; border-radius: 6px; opacity: 0;
+    transition: opacity 0.3s, transform 0.3s; pointer-events: none; z-index: 999;
+  }
+  #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+  /* Toggle switch */
+  .toggle-wrap { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+  .toggle {
+    width: 32px; height: 16px; border-radius: 8px; background: var(--panel2);
+    border: 1px solid var(--border); position: relative; cursor: pointer; transition: background 0.2s;
+  }
+  .toggle.on { background: var(--gold); border-color: var(--gold); }
+  .toggle::after {
+    content: ''; position: absolute; top: 2px; left: 2px;
+    width: 10px; height: 10px; border-radius: 50%; background: var(--muted);
+    transition: left 0.2s, background 0.2s;
+  }
+  .toggle.on::after { left: 18px; background: #0A0A0F; }
+  .toggle-label { font-size: 11px; color: var(--text); }
+
+  .orbit-badge {
+    font-family: var(--font-body); font-size: 11px; font-weight: 600;
+    color: var(--amber); border: 1px solid var(--amber);
+    background: rgba(255,159,69,0.1); padding: 2px 8px; border-radius: 10px;
+  }
+
+  /* Drag ghost */
+  #drag-ghost {
+    position: fixed; pointer-events: none; z-index: 9999;
+    width: 55px; height: 77px; border-radius: 4px; overflow: hidden;
+    opacity: 0.85; display: none; box-shadow: 0 8px 24px rgba(0,0,0,0.6);
+    border: 1px solid var(--gold);
+  }
+  #drag-ghost img { width: 100%; height: 100%; object-fit: cover; }
+
+  /* 1. FOCUS RING — keyboard users need to see where they are */
+  :focus-visible {
+    outline: 2px solid var(--gold);
+    outline-offset: 2px;
+    border-radius: 3px;
+  }
+  :focus:not(:focus-visible) { outline: none; }
+
+  /* 3. BUTTON FEEL — press feedback on all buttons */
+  .btn:active          { transform: translateY(1px); opacity: 0.85; }
+  .layer-btn:active    { transform: scale(0.88); }
+  .toggle-wrap .toggle { transition: background 0.18s, border-color 0.18s; }
+
+  /* 4. TOGGLE — keep original sizing but make it keyboard-accessible
+        The toggle is currently a <div>, we don't change HTML, just ensure
+        it can receive focus and shows a ring */
+  .toggle:focus-visible { outline: 2px solid var(--gold); outline-offset: 3px; }
+
+  /* 5. SLIDER FILL TRACK — visual progress on range inputs */
+  input[type=range] {
+    background: linear-gradient(
+      to right,
+      var(--gold) 0%,
+      var(--gold) var(--sl-pct, 0%),
+      var(--border) var(--sl-pct, 0%),
+      var(--border) 100%
+    );
+  }
+  input[type=range]::-webkit-slider-thumb {
+    width: 13px; height: 13px;
+    transition: transform 0.1s;
+    box-shadow: 0 0 0 0 rgba(201,168,76,0);
+    transition: box-shadow 0.15s;
+  }
+  input[type=range]:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 3px rgba(201,168,76,0.35); }
+
+  /* 9. EMPTY STATE — breathing glyph */
+  @keyframes glyph-breathe {
+    0%, 100% { opacity: 0.2; transform: scale(1);    }
+    50%       { opacity: 0.4; transform: scale(1.08); }
+  }
+
+  /* 10. TOAST — move above toolbar, larger, clearer */
+  #toast {
+    bottom: 76px; /* above the 58px toolbar + margin */
+    font-size: 13px;
+    padding: 9px 20px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+  }
+
+  /* 12. SURFACE FX TOGGLE ROWS — better click target for toggle + label */
+  .toggle-wrap {
+    padding: 4px 0;
+    border-radius: 4px;
+    cursor: pointer; /* whole row clickable */
+    transition: background 0.1s;
+  }
+  .toggle-wrap:hover { background: rgba(255,255,255,0.03); }
+
+  /* 14. DIVIDER — more subtle */
+  .divider { background: rgba(255,255,255,0.05); }
+
+  /* 17. COLOUR PICKERS — better size and label alignment */
+  input[type=color] {
+    width: 30px; height: 26px;
+    border-radius: 4px; padding: 2px;
+    cursor: pointer;
+    transition: border-color 0.15s, transform 0.1s;
+  }
+  input[type=color]:hover { border-color: var(--gold); transform: scale(1.05); }
+
+  /* 19. BTN HOVER — gold underline grow effect (instead of just border recolor) */
+  .btn { position: relative; overflow: hidden; }
+  .btn::after {
+    content: '';
+    position: absolute; bottom: 0; left: 50%; right: 50%;
+    height: 1px; background: var(--gold);
+    transition: left 0.2s, right 0.2s;
+    pointer-events: none;
+  }
+  .btn:hover::after   { left: 0; right: 0; }
+  .btn.active::after, .btn.gold::after { left: 0; right: 0; background: #0A0A0F; }
+  .btn.danger:hover::after { background: #E05555; }
+
+  /* 22. NUM INPUT — show unit context via label proximity (CSS only) */
+  .slider-row .num-input { font-variant-numeric: tabular-nums; }
+
+  /* 23. TOGGLE LABELS — clickable, link to the toggle */
+  .toggle-label { cursor: pointer; user-select: none; }

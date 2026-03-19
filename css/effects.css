@@ -1,0 +1,136 @@
+/* ===== effects.css ===== */
+
+  /* Background effect buttons */
+  .bgfx-btn {
+    font-family: var(--font-body); font-size: 11px; font-weight: 600;
+    background: var(--panel2); border: 1px solid var(--border);
+    color: var(--muted); padding: 5px 8px; border-radius: 4px;
+    cursor: pointer; text-align: left; transition: all 0.12s; flex: 1;
+  }
+  .bgfx-btn:hover { border-color: var(--amber); color: var(--text); }
+  .bgfx-btn.active { border-color: var(--amber); background: rgba(255,159,69,0.12); color: var(--amber); }
+  .bgfx-controls { margin-top: 8px; padding: 8px; background: var(--bg); border: 1px solid var(--border); border-radius: 5px; }
+  .warp-btn {
+    font-family: var(--font-body); font-size: 10px; font-weight: 600;
+    background: var(--panel2); border: 1px solid var(--border);
+    color: var(--muted); padding: 3px 7px; border-radius: 10px;
+    cursor: pointer; transition: all 0.12s;
+  }
+  .warp-btn:hover { border-color: var(--amber); color: var(--text); }
+  .warp-btn.active { border-color: var(--amber); background: rgba(255,159,69,0.15); color: var(--amber); }
+
+  .flow-btn {
+    font-family: var(--font-body); font-size: 10px; font-weight: 600;
+    background: var(--panel2); border: 1px solid var(--border);
+    color: var(--muted); padding: 3px 8px; border-radius: 10px;
+    cursor: pointer; transition: all 0.12s; white-space: nowrap;
+  }
+  .flow-btn:hover { border-color: var(--gold); color: var(--text); }
+  .flow-btn.active { border-color: var(--gold); background: rgba(201,168,76,0.15); color: var(--gold-light); }
+
+  /* Origin XY picker — a small square crosshair pad */
+  .origin-pad {
+    position: relative; width: 100%; aspect-ratio: 2/1;
+    background: var(--panel2); border: 1px solid var(--border);
+    border-radius: 5px; cursor: crosshair; overflow: hidden;
+    margin-bottom: 6px;
+  }
+  .origin-pad-lines { position: absolute; inset: 0; pointer-events: none; }
+  .origin-dot {
+    position: absolute; width: 10px; height: 10px;
+    border-radius: 50%; background: var(--gold);
+    border: 2px solid #fff; transform: translate(-50%, -50%);
+    pointer-events: none; box-shadow: 0 0 6px rgba(201,168,76,0.7);
+    transition: left 0.05s, top 0.05s;
+  }
+
+  /* Spell effects */
+  .spell-preset-btn {
+    font-family: var(--font-body); font-size: 11px; font-weight: 600;
+    background: var(--panel2); border: 1px solid var(--border);
+    color: var(--muted); padding: 5px 8px; border-radius: 4px;
+    cursor: pointer; text-align: left; transition: all 0.12s;
+  }
+  .spell-preset-btn:hover { border-color: var(--purple); color: var(--text); }
+  .spell-preset-btn.active { border-color: var(--purple); background: rgba(123,94,167,0.18); color: var(--text); }
+  .shape-btn {
+    font-family: var(--font-body); font-size: 10px; font-weight: 600;
+    background: var(--panel2); border: 1px solid var(--border);
+    color: var(--muted); padding: 3px 7px; border-radius: 10px;
+    cursor: pointer; transition: all 0.12s;
+  }
+  .shape-btn:hover { border-color: var(--purple); color: var(--text); }
+  .shape-btn.active { border-color: var(--purple); background: rgba(123,94,167,0.18); color: var(--text); }
+
+  /* Surface FX */
+  .sfx-row {
+    display: flex; align-items: center; gap: 8px;
+    padding: 4px 0; margin-bottom: 2px;
+  }
+  .sfx-sel {
+    flex: 1; background: var(--panel2); border: 1px solid var(--border);
+    color: var(--text); font-family: var(--font-body); font-size: 11px;
+    padding: 3px 5px; border-radius: 3px; outline: none; cursor: pointer;
+  }
+
+  /* FX Stack UI */
+  .fxstack { margin-bottom: 10px; }
+  .fxstack-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:6px; }
+  .fxstack-title { font-size:10px; color:var(--muted); letter-spacing:0.06em; font-family:var(--font-head); }
+  .fxstack-add { font-size:11px; padding:3px 8px; }
+  .fxstack-list { display:flex; flex-direction:column; gap:4px; }
+  .fxlayer {
+    display:flex; align-items:center; gap:6px;
+    padding:6px 6px; border-radius:6px;
+    background: rgba(0,0,0,0.22);
+    border: 1px solid rgba(255,255,255,0.08);
+    cursor: pointer;
+  }
+  .fxlayer.selected { border-color: rgba(201,168,76,0.7); box-shadow: 0 0 0 1px rgba(201,168,76,0.25); }
+  .fxlayer .fx-on { width:16px; height:16px; border-radius:4px; border:1px solid var(--border); background: var(--panel2); display:flex; align-items:center; justify-content:center; color: var(--muted); font-size:10px; flex:0 0 16px; }
+  .fxlayer.enabled .fx-on { border-color: var(--gold); color: var(--gold-light); }
+  .fxlayer .fx-name { flex:1; font-size:11px; font-weight:700; color: var(--text); font-family: var(--font-head); letter-spacing: 0.04em; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .fxlayer .fx-mini { display:flex; align-items:center; gap:4px; flex:0 0 auto; }
+  .fxlayer .fx-mini select, .fxlayer .fx-mini input[type=range] { height: 18px; }
+  .fxlayer .fx-mini select{
+    background: var(--panel2); border:1px solid var(--border); color: var(--text);
+    font-family: var(--font-body); font-size: 10px; padding: 1px 4px; border-radius: 4px; outline:none;
+  }
+  .fxlayer .fx-mini .mini-opacity { width: 64px; }
+  .fxlayer .fx-mini .mini-btn {
+    width: 18px; height: 18px; border-radius: 4px; border: 1px solid var(--border);
+    background: var(--panel2); color: var(--muted); cursor: pointer; font-size: 10px;
+    display:flex; align-items:center; justify-content:center;
+  }
+  .fxlayer .fx-mini .mini-btn:hover { border-color: var(--gold); color: var(--gold-light); }
+  .bgfx-btn.stack-selected { border-color: var(--gold); color: var(--gold-light); box-shadow: 0 0 0 1px rgba(201,168,76,0.25); }
+
+  /* Lighting UI */
+  .light-mode-btn {
+    font-family: var(--font-body); font-size: 10px; font-weight: 600;
+    background: var(--panel2); border: 1px solid var(--border);
+    color: var(--muted); padding: 3px 7px; border-radius: 10px;
+    cursor: pointer; transition: all 0.12s;
+  }
+  .light-mode-btn:hover { border-color: var(--gold); color: var(--text); }
+  .light-mode-btn.active { border-color: var(--gold); background: rgba(201,168,76,0.15); color: var(--gold-light); }
+
+  /* Background texture preset buttons */
+  .tex-btn {
+    flex: 1; padding: 5px 4px; font-size: 10px; font-family: var(--font-head);
+    letter-spacing: 0.06em; font-weight: 600; border-radius: 4px; cursor: pointer;
+    border: 1px solid var(--border); background: var(--panel2); color: var(--muted);
+    transition: all 0.15s; text-align: center;
+  }
+  .tex-btn:hover { border-color: var(--purple); color: var(--text); }
+  .tex-btn.active { border-color: var(--gold); background: rgba(201,168,76,0.12); color: var(--gold-light); }
+
+  /* Eyedropper button */
+  .eyedrop-btn {
+    width: 26px; height: 24px; border: 1px solid var(--border); border-radius: 3px;
+    background: var(--panel2); color: var(--muted); cursor: pointer; font-size: 13px;
+    display: flex; align-items: center; justify-content: center;
+    transition: border-color 0.15s, color 0.15s; flex-shrink: 0;
+  }
+  .eyedrop-btn:hover { border-color: var(--gold); color: var(--gold-light); }
+  .eyedrop-btn.active { border-color: var(--gold); color: var(--gold); background: rgba(201,168,76,0.12); }

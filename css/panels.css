@@ -1,0 +1,53 @@
+/* ===== panels.css ===== */
+
+  /* ===== COMMON UI ===== */
+  .panel-section { margin-bottom: 16px; }
+  .section-label {
+    font-family: var(--font-head); font-size: 9px; font-weight: 600;
+    color: var(--muted); letter-spacing: 0.18em; text-transform: uppercase;
+    margin-bottom: 8px; display: block;
+  }
+
+  /* 6. SECTION LABELS — better visual hierarchy */
+  .section-label {
+    font-size: 10px; /* was 9px — more readable */
+    color: var(--muted);
+    letter-spacing: 0.14em; /* slightly tighter */
+  }
+
+  /* 7. INSPECTOR PANEL SECTIONS — clear visual separation */
+  #inspector-content .panel-section,
+  #inspector-text    .panel-section,
+  #inspector-rect    .panel-section {
+    padding-bottom: 12px;
+    border-bottom: 1px solid rgba(255,255,255,0.04);
+    margin-bottom: 12px;
+  }
+  #inspector-content .panel-section:last-child,
+  #inspector-text    .panel-section:last-child,
+  #inspector-rect    .panel-section:last-child {
+    border-bottom: none;
+  }
+
+  /* 13. INSPECTOR FADE-IN when switching layers */
+  #inspector-content,
+  #inspector-text,
+  #inspector-rect,
+  #inspector-empty {
+    animation: panel-fade 0.15s ease;
+  }
+  @keyframes panel-fade {
+    from { opacity: 0; transform: translateY(3px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  /* 15. SCROLLBAR — slightly more visible on hover */
+  .panel-inner:hover::-webkit-scrollbar-thumb { background: var(--muted); }
+
+  /* 11. ADD TO CANVAS — visual hierarchy: Card is primary */
+  #btn-blank-card {
+    background: rgba(201,168,76,0.08);
+    border-color: rgba(201,168,76,0.4);
+    color: var(--gold-light);
+  }
+  #btn-blank-card:hover { background: rgba(201,168,76,0.18); border-color: var(--gold); }

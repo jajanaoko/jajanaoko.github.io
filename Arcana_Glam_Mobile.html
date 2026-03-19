@@ -1,0 +1,1262 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>✦ Arcana Glam — Visual Sandbox</title>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700&family=Crimson+Pro:ital,wght@0,300;0,400;0,600;1,300;1,400&display=swap" rel="stylesheet"/>
+<link rel="stylesheet" href="css/main.css">
+<script src="https://cdn.jsdelivr.net/npm/mux.js/dist/mux.js"></script>
+</head>
+<body>
+<div id="app">
+
+  <!-- TOP BAR -->
+  <div id="topbar">
+    <span class="title">✦ Arcana Glam — Visual Sandbox</span>
+    <div class="right">
+      <span class="badge" id="card-count-badge">0 cards</span>
+<button class="btn small danger" id="btn-clear-all">Clear All</button>
+      <span id="autosave-indicator" style="font-size:10px;color:var(--muted);letter-spacing:0.05em;opacity:0;transition:opacity 0.6s;" title="Auto-saved">✓ saved</span>
+    </div>
+  </div>
+
+  <!-- WORKSPACE -->
+  <div id="workspace">
+
+    <!-- LEFT PANEL -->
+    <div id="left-panel">
+      <div class="panel-close-btn">
+        <span class="panel-close-title">Layers &amp; Assets</span>
+        <button class="panel-close-x" id="left-panel-close" aria-label="Close panel">&#10005;</button>
+      </div>
+      <div class="panel-inner" id="left-panel-inner">
+
+        <div class="panel-section" id="lighting-section">
+          <span class="section-label">Lighting</span>
+
+          <div class="toggle-wrap">
+            <div class="toggle" id="toggle-lighting"></div>
+            <span class="toggle-label">Global light</span>
+          </div>
+
+          <div id="lighting-controls" style="display:none;">
+            <div class="slider-row">
+              <label>Intensity</label>
+              <input type="range" id="sl-light-intensity" min="0" max="1" step="0.01" value="0.6"/ data-btn-step="0.05">
+              <span class="val">60%</span>
+            </div>
+            <div class="slider-row">
+              <label>Radius</label>
+              <input type="range" id="sl-light-radius" min="0.1" max="1.2" step="0.01" value="0.55"/ data-btn-step="0.05">
+              <span class="val">55%</span>
+            </div>
+            <div style="display:flex; align-items:center; gap:6px; margin-bottom:8px;">
+              <label style="font-size:11px; color:var(--muted); flex:0 0 56px;">Color</label>
+              <input type="color" id="pick-light-color" value="#ffffff"/>
+            </div>
+
+            <div style="font-size:10px; color:var(--muted); margin-bottom:5px; letter-spacing:0.06em; font-family:var(--font-head);">Mode</div>
+            <div class="btn-row" style="gap:4px; margin-bottom:8px; flex-wrap:wrap;">
+              <button class="light-mode-btn active" data-light-mode="glow">Glow</button>
+              <button class="light-mode-btn" data-light-mode="shade">Shade</button>
+              <button class="light-mode-btn" data-light-mode="both">Both</button>
+            </div>
+
+            <div style="font-size:10px; color:var(--muted); margin-bottom:5px; letter-spacing:0.06em; font-family:var(--font-head);">Position</div>
+            <div class="origin-pad" id="light-pad">
+              <canvas class="origin-pad-lines" id="light-pad-lines"></canvas>
+              <div class="origin-dot" id="light-dot"></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="divider"></div>
+
+
+        <div class="panel-section">
+          <span class="section-label">Add to Canvas</span>
+          <div class="btn-row">
+            <button class="btn small" id="btn-blank-card">＋ Card</button>
+            <button class="btn small amber" id="btn-add-text">T Text</button>
+            <button class="btn small" id="btn-add-rect" style="border-color:#7a6fff;color:#7a6fff;">▭ Rect</button>
+            <button class="btn small" id="btn-custom-card" style="border-color:var(--purple,#7a6fff);color:var(--purple,#7a6fff);">✦ Custom</button>
+            <button class="btn small" id="btn-upload-asset">⬆ Upload</button>
+            <input type="file" id="file-upload" accept="image/*" multiple/>
+          </div>
+        </div>
+
+        <div class="panel-section">
+          <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:5px;">
+            <span class="section-label" style="margin:0;">Layers</span>
+            <div style="display:flex; gap:2px;">
+              <button class="layer-btn" id="btn-select-all" title="Select all (A)" style="font-size:9px; width:auto; padding:0 5px;">All</button>
+              <button class="layer-btn" id="btn-group-layers" title="Group selected (G)" style="font-size:10px; width:auto; padding:0 5px;">⊞ Group</button>
+              <button class="layer-btn" id="btn-layer-up"     title="Move forward (↑)">↑</button>
+              <button class="layer-btn" id="btn-layer-down"   title="Move back (↓)">↓</button>
+              <button class="layer-btn" id="btn-layer-top"    title="Bring to front">⤒</button>
+              <button class="layer-btn" id="btn-layer-bottom" title="Send to back">⤓</button>
+            </div>
+          </div>
+          <div style="font-size:9px; color:var(--muted); margin-bottom:4px; line-height:1.5;">
+            Shift-click range · Ctrl-click toggle · Ctrl+1–9 assign slot (or whole group) · 1–9 jump · Ctrl+D duplicate
+          </div>
+          <div id="layers-list">
+            <div class="layers-empty">No cards yet</div>
+          </div>
+        </div>
+
+        <div class="panel-section">
+          <span class="section-label">Stock Library</span>
+          <div style="font-size:10px; color:var(--muted); margin-bottom:6px;">Click to add · Drag to canvas</div>
+          <div class="asset-grid" id="stock-grid"></div>
+        </div>
+
+        <div class="divider"></div>
+
+        <div class="panel-section">
+          <span class="section-label">Uploaded Assets</span>
+          <div class="asset-grid" id="asset-grid">
+            <div style="grid-column:1/-1; text-align:center; padding:14px 0; font-size:11px; color:var(--muted); font-style:italic;">No assets yet</div>
+          </div>
+        </div>
+
+        <div class="divider"></div>
+
+        <div class="panel-section">
+          <span class="section-label">Background</span>
+
+          <!-- 4 preset swatches + add button -->
+          <div class="bg-swatch-row" id="bg-swatches">
+            <div class="bg-swatch active" data-color="#1b4d1b" style="background:#1b4d1b;" title="Forest"></div>
+            <div class="bg-swatch" data-color="#4d1010" style="background:#4d1010;" title="Ember"></div>
+            <div class="bg-swatch" data-color="#3c3c3c" style="background:#3c3c3c;" title="Ash"></div>
+            <div class="bg-swatch" data-color="#102040" style="background:#102040;" title="Abyss"></div>
+            <button class="bg-swatch-add" id="btn-add-bg-swatch" title="Add custom colour">+</button>
+          </div>
+
+          <!-- Picker panel — shown when a swatch is tapped -->
+          <div class="bg-picker-panel" id="bg-picker-panel">
+            <div class="bg-picker-tabs">
+              <button class="btn small gold" data-tab="solid">Solid</button>
+              <button class="btn small" data-tab="gradient">Gradient</button>
+            </div>
+            <div class="bg-picker-body" id="bg-tab-solid">
+              <div style="display:flex; align-items:center; gap:8px;">
+                <input type="color" id="pick-bg-color" value="#0D1A0D" title="Solid colour"/>
+                <span style="font-size:11px; color:var(--muted);">Pick colour</span>
+              </div>
+            </div>
+            <div class="bg-picker-body" id="bg-tab-gradient" style="display:none;">
+              <div class="bg-swatch-row" style="margin-bottom:8px;">
+                <div class="bg-swatch-sm" data-grad="forest" title="Forest" style="background:linear-gradient(135deg,#050f05,#0d2e0d);"></div>
+                <div class="bg-swatch-sm" data-grad="ember"  title="Ember"  style="background:linear-gradient(135deg,#1a0505,#2e0d00);"></div>
+                <div class="bg-swatch-sm" data-grad="ash"    title="Ash"    style="background:linear-gradient(135deg,#111,#252525);"></div>
+                <div class="bg-swatch-sm" data-grad="abyss"  title="Abyss"  style="background:linear-gradient(135deg,#000510,#001030);"></div>
+              </div>
+              <div style="display:flex; align-items:center; gap:6px; margin-bottom:6px;">
+                <input type="color" id="pick-grad-start" value="#0A0A0F" title="Start colour"/>
+                <span style="font-size:11px; color:var(--muted);">→</span>
+                <input type="color" id="pick-grad-end" value="#1a1a2e" title="End colour"/>
+              </div>
+              <div class="slider-row">
+                <label>Angle</label>
+                <input type="range" id="pick-grad-angle" min="0" max="360" value="135"/>
+                <span class="val" id="val-grad-angle">135°</span>
+              </div>
+            </div>
+          </div>
+
+          <div style="font-size:10px; color:var(--muted); margin-bottom:5px; letter-spacing:0.06em; font-family:var(--font-head);">TEXTURE OVERLAY</div>
+          <div style="display:flex; gap:5px; margin-bottom:5px;">
+            <div style="flex:1;">
+              <div class="tex-preview"><canvas id="tex-preview-wood"></canvas></div>
+              <button class="tex-btn" id="btn-tex-wood" data-tex="wood">🪵 Wood</button>
+            </div>
+            <div style="flex:1;">
+              <div class="tex-preview"><canvas id="tex-preview-space"></canvas></div>
+              <button class="tex-btn" id="btn-tex-space" data-tex="space">✨ Space</button>
+            </div>
+          </div>
+          <div id="tex-opacity-row" class="slider-row" style="display:none;">
+            <label>Opacity</label>
+            <input type="range" id="sl-tex-opacity" min="0" max="1" step="0.02" value="0.45"/>
+            <span class="val" id="val-tex-opacity">45%</span>
+          </div>
+
+          <button class="btn small" id="btn-upload-bg" style="margin-bottom:6px;">⬆ Upload BG Image</button>
+          <input type="file" id="file-bg" accept="image/*"/>
+          <div id="bg-opacity-row" class="slider-row" style="display:none;">
+            <label>Opacity</label>
+            <input type="range" id="bg-opacity-slider" min="0" max="1" step="0.05" value="0.6"/>
+            <span class="val" id="bg-opacity-val">60%</span>
+          </div>
+          <button class="btn small danger" id="btn-remove-bg" style="display:none;">✕ Remove BG</button>
+        </div>
+
+        <div class="divider"></div>
+
+        <div class="panel-section" id="bgfx-section">
+          <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:8px;">
+            <span class="section-label" style="margin:0;">Background Effects</span>
+            <button class="btn small danger" id="btn-bgfx-clear-all">✕ Reset All</button>
+          </div>
+
+
+          <div class="fxstack" id="bgfx-stack">
+            <div class="fxstack-header">
+              <div class="fxstack-title">FX STACK (max 3)</div>
+              <button class="btn small fxstack-add" id="bgfx-add-layer" title="Add another background FX layer (max 3)">＋ Layer</button>
+            </div>
+            <div class="fxstack-list" id="bgfx-stack-list"></div>
+            <div style="font-size:10px;color:var(--muted);margin-top:6px;line-height:1.4;">
+              Tip: click an active FX button to add/remove it from the stack. Select a layer to edit its sliders below.
+            </div>
+          </div>
+
+
+          <div class="btn-row" style="margin-bottom:4px;">
+            <button class="bgfx-btn" id="bgfx-fire"      data-fx="fire">🔥 Fire</button>
+            <button class="bgfx-btn" id="bgfx-cosmic"    data-fx="cosmic">🌙 Cosmic</button>
+          </div>
+          <div class="btn-row" style="margin-bottom:4px;">
+            <button class="bgfx-btn" id="bgfx-shadow"    data-fx="shadow">🌑 Shadow</button>
+            <button class="bgfx-btn" id="bgfx-smokering" data-fx="smokering">🌀 Smoke Ring</button>
+          </div>
+          <div class="btn-row" style="margin-bottom:4px;">
+            <button class="bgfx-btn" id="bgfx-nature"    data-fx="nature">🌿 Nature</button>
+          </div>
+          <div class="btn-row" style="margin-bottom:8px;">
+            <button class="bgfx-btn" id="bgfx-crystal"   data-fx="crystal">💎 Crystal</button>
+            <button class="bgfx-btn" id="bgfx-metaballs" data-fx="metaballs">🫧 Metaballs</button>
+          </div>
+          <div class="btn-row" style="margin-bottom:8px;">
+            <button class="bgfx-btn" id="bgfx-godrays"   data-fx="godrays" style="width:100%;">✦ God Rays</button>
+          </div>
+
+          <div id="bgfx-warp-section" style="display:none;">
+            <div style="font-size:10px; color:var(--muted); margin-bottom:5px; letter-spacing:0.06em; font-family:var(--font-head);">WARP</div>
+            <div class="btn-row" style="gap:4px; margin-bottom:8px; flex-wrap:wrap;">
+              <button class="warp-btn active" data-warp="none">Off</button>
+              <button class="warp-btn" data-warp="ripple">Ripple</button>
+              <button class="warp-btn" data-warp="vortex">Vortex</button>
+              <button class="warp-btn" data-warp="pulse">Pulse</button>
+            </div>
+          </div>
+
+          <div id="bgfx-controls" style="display:none;">
+            <div class="bgfx-controls">
+              <div id="bgfx-sliders"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="resize-handle-v" id="left-resize"></div>
+    <!-- CENTRE CANVAS COLUMN -->
+    <div id="canvas-col">
+      <div id="canvas-wrap">
+        <canvas id="main-canvas"></canvas>
+        <div id="grain"></div>
+        <!-- Export frame overlay drawn on top of canvas during frame-pick mode -->
+        <canvas id="export-frame-canvas" style="position:absolute;inset:0;pointer-events:none;z-index:15;display:none;"></canvas>
+        <div id="empty-state">
+          <div class="glyph">✦</div>
+          <p>Start with a template or a blank canvas</p>
+          <div id="empty-state-btns">
+            <button class="es-btn es-btn-primary" id="es-btn-add">＋ Blank Card</button>
+            <button class="es-btn es-tpl" data-tpl="duel">⚔ Duel</button>
+            <button class="es-btn es-tpl" data-tpl="tarot">✦ Tarot</button>
+            <button class="es-btn es-tpl" data-tpl="showcase">◎ Showcase</button>
+            <button class="es-btn es-tpl" data-tpl="fan">🂾 Fan</button>
+            <button class="es-btn" id="es-btn-upload">⬆ Upload</button>
+          </div>
+        </div>
+        <div id="drop-overlay">
+          <div class="front-zone">FRONT</div>
+          <div class="back-zone">BACK</div>
+        </div>
+      </div>
+
+      <!-- FLOATING SHOWCASE BUTTON — visible when cards exist (has-cards class on body) -->
+      <!-- BOTTOM PANEL inside canvas col -->
+      <div id="bottom-panel">
+        <div id="bottom-resize-handle"></div>
+        <!-- Main toolbar: camera + layout (always visible) -->
+        <div id="toolbar-row">
+          <!-- Camera -->
+          <button class="btn small icon-btn" id="btn-zoom-out" title="Zoom Out">－</button>
+          <button class="btn small icon-btn" id="btn-zoom-in" title="Zoom In">＋</button>
+          <button class="btn small icon-btn" id="btn-orbit" title="Orbit Mode">⟳</button>
+          <span id="orbit-badge" class="orbit-badge" style="display:none;">0° / 0°</span>
+          <button class="btn small icon-btn" id="btn-reset-cam" title="Reset Camera">⌂</button>
+          <div class="tb-sep"></div>
+          <!-- Layout -->
+          <button class="btn small" id="btn-layout-grid" title="Grid Layout">Grid</button>
+          <button class="btn small" id="btn-layout-fan" title="Fan Layout">Fan</button>
+          <button class="btn small" id="btn-layout-stack" title="Stack Layout">Stack</button>
+          <button class="btn small" id="btn-layout-line" title="Line Layout">Line</button>
+          <div class="tb-sep"></div>
+          <button class="btn small icon-btn" id="btn-undo" title="Undo (Ctrl+Z)" style="opacity:0.35;">↩</button>
+          <button class="btn small icon-btn" id="btn-redo" title="Redo (Ctrl+Shift+Z)" style="opacity:0.35;">↪</button>
+          <div class="tb-sep"></div>
+          <button class="btn small" id="btn-timeline-toggle">▸ Timeline</button>
+        </div>
+
+        <!-- Playback row: shown when playing or timeline is open -->
+        <div id="playback-row">
+          <button class="btn small icon-btn" id="btn-stop" title="Stop">■</button>
+          <button class="btn small icon-btn" id="btn-play" title="Play/Pause">▶</button>
+          <button class="btn small icon-btn" id="btn-loop" title="Loop">↩</button>
+          <div class="scrubber-wrap" id="scrubber-wrap">
+            <div class="scrubber-track"></div>
+            <div class="scrubber-head" id="scrubber-head" style="left:0%"></div>
+          </div>
+          <span class="badge" id="playhead-time">0.000s</span>
+        </div>
+
+        <!-- TIMELINE SECTION -->
+        <div id="timeline-section">
+
+          <!-- Row 1: Scenes -->
+          <div id="timeline-header">
+            <span class="tl-label">Scenes</span>
+            <div id="scene-slot-1" class="scene-slot" data-slot="1"></div>
+            <div id="scene-slot-2" class="scene-slot" data-slot="2"></div>
+            <div id="scene-slot-3" class="scene-slot" data-slot="3"></div>
+            <div id="scene-slot-4" class="scene-slot" data-slot="4"></div>
+            <div id="scene-slot-5" class="scene-slot" data-slot="5"></div>
+            <button class="clear-seq-btn" id="btn-clear-sequences" style="margin-left:auto;">✕ Clear All</button>
+          </div>
+
+          <!-- Row 2: Quick Animation Combos -->
+          <div id="combo-strip">
+            <span class="tl-label" style="flex-shrink:0;">Quick</span>
+            <button class="btn small tl-combo-btn" data-combo="Deal → Float">Deal → Float</button>
+            <button class="btn small tl-combo-btn" data-combo="Play → Tap">Play → Tap</button>
+            <button class="btn small tl-combo-btn" data-combo="Pop → Orbit">Pop → Orbit</button>
+            <button class="btn small tl-combo-btn" data-combo="Ignite → Float">Ignite → Float</button>
+            <button class="btn small tl-combo-btn" data-combo="Flip → Float">Flip → Float</button>
+            <button class="btn small tl-combo-btn" data-combo="Deal → Orbit">Deal → Orbit</button>
+          </div>
+
+          <!-- Tracks -->
+          <div id="seq-tracks-wrap">
+            <div id="seq-tracks"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="resize-handle-v" id="right-resize"></div>
+
+    <!-- RIGHT PANEL -->
+    <div id="right-panel">
+      <div class="panel-close-btn">
+        <span class="panel-close-title">Inspector</span>
+        <button class="panel-close-x" id="right-panel-close" aria-label="Close panel">&#10005;</button>
+      </div>
+      <div class="panel-inner" id="inspector-inner">
+        <!-- Step editor panel (shown when a timeline block is selected) -->
+        <div id="step-editor-panel">
+          <div id="step-editor-breadcrumb">
+            <span id="step-editor-crumb-card">Card</span>
+            <span class="sep">›</span>
+            <span id="step-editor-crumb-step">Step</span>
+            <span class="step-close" id="step-editor-close">✕</span>
+          </div>
+          <div id="step-editor-body"></div>
+          <div class="divider" style="margin-top:10px;"></div>
+        </div>
+        <div id="inspector-empty">
+          <div id="scene-summary" style="display:none;">
+            <div id="scene-card-count"></div>
+            <div id="scene-orbit-hint" style="display:none;"></div>
+          </div>
+          <div style="padding:18px 14px; color:var(--muted); font-size:12px; line-height:1.8; font-style:italic; text-align:center;">
+            Tap a card to inspect it.<br>Shift-tap to multi-select.
+          </div>
+        </div>
+        <div id="inspector-content" style="display:none;">
+          <!-- 4.1 Selection Header -->
+          <div class="panel-section">
+            <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:8px;">
+              <span class="section-label" style="margin:0;" id="sel-header">Selection (1)</span>
+            </div>
+            <div class="btn-row">
+              <button class="btn small" id="btn-flip">↔ Flip</button>
+              <button class="btn small danger" id="btn-delete-sel">✕ Delete</button>
+              <button class="btn small" id="btn-deselect">Deselect</button>
+            </div>
+          </div>
+          <div class="divider"></div>
+
+          <!-- Custom card: back to builder -->
+          <div id="custom-card-section" class="panel-section" style="display:none;">
+            <button class="btn small amber" id="btn-card-customize" style="width:100%;">✦ Card Customization</button>
+          </div>
+          <div id="custom-card-section-divider" class="divider" style="display:none;"></div>
+
+          <!-- 4.2 Card Surface -->
+          <div class="panel-section">
+            <span class="section-label">Card Surface</span>
+            <div class="tab-row">
+              <div class="tab active" data-surf="front">FRONT</div>
+              <div class="tab" data-surf="back">BACK</div>
+            </div>
+            <div class="surface-preview" id="surface-preview">
+              <div class="empty-hint">No image</div>
+            </div>
+            <div class="btn-row" style="margin-bottom:6px;">
+              <button class="btn small" id="btn-upload-surface">⬆ Upload</button>
+              <button class="btn small danger" id="btn-clear-surface">✕ Clear</button>
+              <input type="file" id="file-surface" accept="image/*"/>
+            </div>
+            <span class="section-label">Library</span>
+            <div class="asset-grid" id="inspector-asset-grid">
+              <div style="grid-column:1/-1; text-align:center; font-size:11px; color:var(--muted); font-style:italic; padding:8px 0;">No assets</div>
+            </div>
+          </div>
+          <div class="divider"></div>
+
+          <!-- 4.3 Transform -->
+          <div class="panel-section">
+            <span class="section-label">Transform</span>
+            <div class="slider-row">
+              <label>Scale</label>
+              <input type="range" id="sl-scale" min="0.4" max="2.0" step="0.05" value="1"/>
+              <span class="val" id="val-scale">1.00×</span>
+            </div>
+            <div class="slider-row">
+              <label>Rotation</label>
+              <input type="range" id="sl-rot" min="-180" max="180" step="1" value="0"/>
+              <span class="val" id="val-rot">0°</span>
+            </div>
+            <div class="btn-row" style="margin-top:2px;">
+              <button class="btn small" data-rot="0">0°</button>
+              <button class="btn small" data-rot="90">90°</button>
+              <button class="btn small" data-rot="-90">−90°</button>
+              <button class="btn small" data-rot="180">180°</button>
+            </div>
+          </div>
+          <div class="divider"></div>
+
+          <!-- 4.4 Glare -->
+          <div class="panel-section">
+            <span class="section-label">Glare / Sheen</span>
+            <div class="toggle-wrap">
+              <div class="toggle" id="toggle-glare"></div>
+              <span class="toggle-label">Enable Glare</span>
+            </div>
+            <div id="glare-controls" style="display:none;">
+              <div class="slider-row">
+                <label>Intensity</label>
+                <input type="range" id="sl-glare" min="0" max="2" step="0.1" value="1"/>
+                <span class="val" id="val-glare">1.0</span>
+              </div>
+            </div>
+          </div>
+          <div class="divider"></div>
+
+          <!-- 4.4b Drop Shadow -->
+          <div class="panel-section">
+            <span class="section-label">Drop Shadow</span>
+            <div class="toggle-wrap">
+              <div class="toggle" id="toggle-shadow"></div>
+              <span class="toggle-label">Enable Shadow</span>
+            </div>
+            <div id="shadow-controls" style="display:none;">
+              <div class="slider-row">
+                <label>Colour</label>
+                <input type="color" id="pick-shadow-color" value="#000000"/>
+              </div>
+              <div class="slider-row">
+                <label>Opacity</label>
+                <input type="range" id="sl-shadow-opacity" min="0.05" max="1" step="0.05" value="0.6"/ data-btn-step="0.05">
+                <span class="val" id="val-shadow-opacity">0.60</span>
+              </div>
+              <div class="slider-row">
+                <label>Spread</label>
+                <input type="range" id="sl-shadow-blur" min="2" max="60" step="1" value="18"/>
+                <span class="val" id="val-shadow-blur">18</span>
+              </div>
+              <div class="slider-row">
+                <label>Offset X</label>
+                <input type="range" id="sl-shadow-x" min="-40" max="40" step="1" value="6"/>
+                <span class="val" id="val-shadow-x">6</span>
+              </div>
+              <div class="slider-row">
+                <label>Offset Y</label>
+                <input type="range" id="sl-shadow-y" min="-40" max="40" step="1" value="10"/>
+                <span class="val" id="val-shadow-y">10</span>
+              </div>
+            </div>
+          </div>
+          <div class="divider"></div>
+
+          <!-- 4.5 Glow -->
+          <div class="panel-section">
+            <span class="section-label">Glow / Bloom</span>
+            <div class="toggle-wrap">
+              <div class="toggle" id="toggle-glow"></div>
+              <span class="toggle-label">Enable Glow</span>
+            </div>
+            <div id="glow-controls" style="display:none;">
+              <div class="slider-row">
+                <label>Colour</label>
+                <input type="color" id="pick-glow" value="#C9A84C"/>
+              </div>
+              <div class="slider-row">
+                <label>Intensity</label>
+                <input type="range" id="sl-glow" min="0.1" max="3" step="0.1" value="1"/>
+                <span class="val" id="val-glow">1.0</span>
+              </div>
+            </div>
+          </div>
+          <div class="divider"></div>
+
+          <!-- 4.5b Spell Effects -->
+          <div class="panel-section">
+            <span class="section-label">✦ Spell Effects</span>
+            <div class="toggle-wrap">
+              <div class="toggle" id="toggle-spell"></div>
+              <span class="toggle-label">Enable Particles</span>
+            </div>
+            <div id="spell-controls" style="display:none;">
+              <div style="margin-bottom:8px;">
+                <div style="font-size:10px; color:var(--muted); margin-bottom:5px; text-transform:uppercase; letter-spacing:0.08em;">Preset</div>
+                <div style="display:grid; grid-template-columns:1fr 1fr; gap:4px;" id="spell-preset-grid">
+                  <button class="spell-preset-btn active" data-preset="fire">🔥 Fire</button>
+                  <button class="spell-preset-btn" data-preset="nature">🌿 Nature</button>
+                  <button class="spell-preset-btn" data-preset="moonlight">🌙 Moonlight</button>
+                  <button class="spell-preset-btn" data-preset="shadow">🌑 Shadow</button>
+                  <button class="spell-preset-btn" data-preset="arc">⚡ Arc</button>
+                  <button class="spell-preset-btn" data-preset="neural" style="grid-column:span 2;">🕸 Neural Web</button>
+                </div>
+              </div>
+              <div class="slider-row">
+                <label>Colour</label>
+                <input type="color" id="pick-spell-color" value="#FF6B2B"/>
+                <span class="val" id="val-spell-color" style="font-size:10px; width:44px; text-align:right;">custom</span>
+              </div>
+              <div class="slider-row">
+                <label>Intensity</label>
+                <input type="range" id="sl-spell-intensity" min="0.1" max="3" step="0.05" value="1"/ data-btn-step="0.1">
+                <span class="val" id="val-spell-intensity">1.0</span>
+              </div>
+              <div class="slider-row">
+                <label>Count</label>
+                <input type="range" id="sl-spell-count" min="5" max="120" step="1" value="40"/ data-btn-step="5">
+                <span class="val" id="val-spell-count">40</span>
+              </div>
+              <div class="slider-row">
+                <label>Size</label>
+                <input type="range" id="sl-spell-size" min="0.5" max="5" step="0.1" value="2"/>
+                <span class="val" id="val-spell-size">2.0</span>
+              </div>
+              <div class="slider-row">
+                <label>Speed</label>
+                <input type="range" id="sl-spell-speed" min="0.1" max="3" step="0.05" value="1"/ data-btn-step="0.1">
+                <span class="val" id="val-spell-speed">1.0</span>
+              </div>
+              <div class="slider-row">
+                <label>Spread</label>
+                <input type="range" id="sl-spell-spread" min="0.1" max="1" step="0.05" value="0.5"/ data-btn-step="0.1">
+                <span class="val" id="val-spell-spread">0.50</span>
+              </div>
+              <div class="slider-row">
+                <label>Scale</label>
+                <input type="range" id="sl-spell-scale" min="0.25" max="4" step="0.05" value="1"/ data-btn-step="0.25">
+                <span class="val" id="val-spell-scale">1.00</span>
+              </div>
+              <div class="slider-row">
+                <label>BG Opacity</label>
+                <input type="range" id="sl-spell-bgopacity" min="0" max="1" step="0.02" value="0.35"/ data-btn-step="0.05">
+                <span class="val" id="val-spell-bgopacity">0.35</span>
+              </div>
+              <div style="margin-top:6px;">
+                <div style="font-size:10px; color:var(--muted); margin-bottom:5px; text-transform:uppercase; letter-spacing:0.08em;">Particle Shape</div>
+                <div style="display:flex; flex-wrap:wrap; gap:3px;" id="spell-shape-btns">
+                  <button class="shape-btn active" data-shape="ember">Ember</button>
+                  <button class="shape-btn" data-shape="star">Star</button>
+                  <button class="shape-btn" data-shape="wisp">Wisp</button>
+                  <button class="shape-btn" data-shape="petal">Petal</button>
+                  <button class="shape-btn" data-shape="spark">Spark</button>
+                  <button class="shape-btn" data-shape="orb">Orb</button>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="divider"></div>
+
+          <!-- 4.5c Surface FX -->
+          <div class="panel-section">
+            <span class="section-label">✦ Surface FX</span>
+
+            <!-- Shimmer -->
+            <div class="sfx-row">
+              <div class="toggle" id="toggle-shimmer"></div>
+              <span class="toggle-label">Shimmer</span>
+            </div>
+            <div id="shimmer-controls" style="display:none; margin-bottom:8px; padding-left:4px;">
+              <div class="slider-row">
+                <label>Blend</label>
+                <select id="sel-shimmer-blend" class="sfx-sel">
+                  <option value="screen">Screen</option>
+                  <option value="overlay">Overlay</option>
+                  <option value="soft-light" selected>Soft Light</option>
+                  <option value="color-dodge">Color Dodge</option>
+                  <option value="lighter">Lighter</option>
+                  <option value="hard-light">Hard Light</option>
+                  <option value="source-over">Normal</option>
+                </select>
+              </div>
+              <div class="slider-row">
+                <label>Colour</label>
+                <input type="color" id="pick-shimmer-color" value="#ffffff"/>
+              </div>
+              <div class="slider-row">
+                <label>Opacity</label>
+                <input type="range" id="sl-shimmer-opacity" min="0.02" max="0.7" step="0.01" value="0.22"/ data-btn-step="0.05">
+                <span class="val" id="val-shimmer-opacity">0.22</span>
+              </div>
+              <div class="slider-row">
+                <label>Width</label>
+                <input type="range" id="sl-shimmer-width" min="0.05" max="0.6" step="0.01" value="0.2"/ data-btn-step="0.05">
+                <span class="val" id="val-shimmer-width">0.20</span>
+              </div>
+              <div class="slider-row">
+                <label>Speed</label>
+                <input type="range" id="sl-shimmer-speed" min="0.1" max="3" step="0.05" value="0.7"/ data-btn-step="0.1">
+                <span class="val" id="val-shimmer-speed">0.70</span>
+              </div>
+              <div class="slider-row">
+                <label>Bands</label>
+                <input type="range" id="sl-shimmer-bands" min="1" max="6" step="1" value="2"/>
+                <span class="val" id="val-shimmer-bands">2</span>
+              </div>
+            </div>
+
+            <!-- Luster -->
+            <div class="sfx-row">
+              <div class="toggle" id="toggle-luster"></div>
+              <span class="toggle-label">Luster</span>
+            </div>
+            <div id="luster-controls" style="display:none; margin-bottom:8px; padding-left:4px;">
+              <div class="slider-row">
+                <label>Blend</label>
+                <select id="sel-luster-blend" class="sfx-sel">
+                  <option value="overlay" selected>Overlay</option>
+                  <option value="soft-light">Soft Light</option>
+                  <option value="screen">Screen</option>
+                  <option value="multiply">Multiply</option>
+                  <option value="color">Color</option>
+                  <option value="luminosity">Luminosity</option>
+                  <option value="source-over">Normal</option>
+                </select>
+              </div>
+              <div class="slider-row">
+                <label>Colour</label>
+                <input type="color" id="pick-luster-color" value="#c9a84c"/>
+              </div>
+              <div class="slider-row">
+                <label>Opacity</label>
+                <input type="range" id="sl-luster-opacity" min="0.02" max="0.9" step="0.01" value="0.35"/ data-btn-step="0.05">
+                <span class="val" id="val-luster-opacity">0.35</span>
+              </div>
+              <div class="slider-row">
+                <label>Radius</label>
+                <input type="range" id="sl-luster-radius" min="0.2" max="1.5" step="0.05" value="0.75"/ data-btn-step="0.1">
+                <span class="val" id="val-luster-radius">0.75</span>
+              </div>
+              <div class="slider-row">
+                <label>Pulse</label>
+                <input type="range" id="sl-luster-pulse" min="0" max="1" step="0.05" value="0.3"/ data-btn-step="0.1">
+                <span class="val" id="val-luster-pulse">0.30</span>
+              </div>
+            </div>
+
+            <!-- Grain -->
+            <div class="sfx-row">
+              <div class="toggle" id="toggle-grain"></div>
+              <span class="toggle-label">Grain</span>
+            </div>
+            <div id="grain-controls" style="display:none; margin-bottom:8px; padding-left:4px;">
+              <div class="slider-row">
+                <label>Blend</label>
+                <select id="sel-grain-blend" class="sfx-sel">
+                  <option value="overlay" selected>Overlay</option>
+                  <option value="soft-light">Soft Light</option>
+                  <option value="screen">Screen</option>
+                  <option value="multiply">Multiply</option>
+                  <option value="source-over">Normal</option>
+                </select>
+              </div>
+              <div class="slider-row">
+                <label>Amount</label>
+                <input type="range" id="sl-grain-amount" min="0.02" max="0.6" step="0.01" value="0.12"/ data-btn-step="0.05">
+                <span class="val" id="val-grain-amount">0.12</span>
+              </div>
+              <div class="slider-row">
+                <label>Scale</label>
+                <input type="range" id="sl-grain-scale" min="0.5" max="4" step="0.1" value="1.0"/>
+                <span class="val" id="val-grain-scale">1.0</span>
+              </div>
+              <div class="slider-row">
+                <label>Animate</label>
+                <input type="range" id="sl-grain-anim" min="0" max="1" step="0.05" value="0.4"/ data-btn-step="0.1">
+                <span class="val" id="val-grain-anim">0.40</span>
+              </div>
+            </div>
+
+            <!-- Ripple -->
+            <div class="sfx-row">
+              <div class="toggle" id="toggle-ripple"></div>
+              <span class="toggle-label">Ripple</span>
+            </div>
+            <div id="ripple-controls" style="display:none; margin-bottom:4px; padding-left:4px;">
+              <div class="slider-row">
+                <label>Blend</label>
+                <select id="sel-ripple-blend" class="sfx-sel">
+                  <option value="screen" selected>Screen</option>
+                  <option value="overlay">Overlay</option>
+                  <option value="soft-light">Soft Light</option>
+                  <option value="lighter">Lighter</option>
+                  <option value="color-dodge">Color Dodge</option>
+                  <option value="source-over">Normal</option>
+                </select>
+              </div>
+              <div class="slider-row">
+                <label>Colour</label>
+                <input type="color" id="pick-ripple-color" value="#88bbff"/>
+              </div>
+              <div class="slider-row">
+                <label>Opacity</label>
+                <input type="range" id="sl-ripple-opacity" min="0.02" max="0.6" step="0.01" value="0.18"/ data-btn-step="0.05">
+                <span class="val" id="val-ripple-opacity">0.18</span>
+              </div>
+              <div class="slider-row">
+                <label>Speed</label>
+                <input type="range" id="sl-ripple-speed" min="0.1" max="3" step="0.05" value="0.8"/ data-btn-step="0.1">
+                <span class="val" id="val-ripple-speed">0.80</span>
+              </div>
+              <div class="slider-row">
+                <label>Rings</label>
+                <input type="range" id="sl-ripple-rings" min="1" max="6" step="1" value="3"/>
+                <span class="val" id="val-ripple-rings">3</span>
+              </div>
+              <div class="slider-row">
+                <label>Spread</label>
+                <input type="range" id="sl-ripple-spread" min="0.1" max="1" step="0.05" value="0.5"/ data-btn-step="0.1">
+                <span class="val" id="val-ripple-spread">0.50</span>
+              </div>
+            </div>
+
+            <!-- Holo -->
+            <div class="sfx-row" style="margin-top:6px;">
+              <div class="toggle" id="toggle-holo"></div>
+              <span class="toggle-label">✦ Holo</span>
+            </div>
+            <div id="holo-controls" style="display:none; margin-bottom:4px; padding-left:4px;">
+              <div class="slider-row">
+                <label>Mode</label>
+                <select id="sel-holo-mode" class="sfx-sel">
+                  <option value="glass" selected>Glass</option>
+                  <option value="sparkle">Sparkle</option>
+                  <option value="hex">Hex Foil</option>
+                  <option value="aurora">Aurora</option>
+                </select>
+              </div>
+              <div class="slider-row">
+                <label>Blend</label>
+                <select id="sel-holo-blend" class="sfx-sel">
+                  <option value="screen" selected>Screen</option>
+                  <option value="lighter">Add</option>
+                  <option value="overlay">Overlay</option>
+                  <option value="color-dodge">Color Dodge</option>
+                  <option value="soft-light">Soft Light</option>
+                  <option value="source-over">Normal</option>
+                </select>
+              </div>
+              <div class="slider-row">
+                <label>Intensity</label>
+                <input type="range" id="sl-holo-intensity" min="0.1" max="3" step="0.05" value="1" data-btn-step="0.1"/>
+                <span class="val" id="val-holo-intensity">1.00</span>
+              </div>
+              <div class="slider-row">
+                <label>Iridesc.</label>
+                <input type="range" id="sl-holo-iridescence" min="0" max="1" step="0.05" value="0.6" data-btn-step="0.1"/>
+                <span class="val" id="val-holo-iridescence">0.60</span>
+              </div>
+              <div class="slider-row">
+                <label>Speed</label>
+                <input type="range" id="sl-holo-speed" min="0.1" max="3" step="0.1" value="1" data-btn-step="0.1"/>
+                <span class="val" id="val-holo-speed">1.00</span>
+              </div>
+              <div class="slider-row" id="holo-size-row">
+                <label>Size</label>
+                <input type="range" id="sl-holo-size" min="0.5" max="6" step="0.25" value="2"/>
+                <span class="val" id="val-holo-size">2.00</span>
+              </div>
+              <!-- Glass reflection controls (shown only in glass mode) -->
+              <div id="holo-glass-controls">
+                <div style="font-size:9px; color:var(--muted); margin:5px 0 3px; text-transform:uppercase; letter-spacing:0.06em;">Reflection</div>
+                <div class="slider-row">
+                  <label>X</label>
+                  <input type="range" id="sl-holo-refX" min="-50" max="50" step="1" value="0"/>
+                  <span class="val" id="val-holo-refX">0</span>
+                </div>
+                <div class="slider-row">
+                  <label>Y</label>
+                  <input type="range" id="sl-holo-refY" min="-50" max="50" step="1" value="0"/>
+                  <span class="val" id="val-holo-refY">0</span>
+                </div>
+                <div class="slider-row">
+                  <label>Scale</label>
+                  <input type="range" id="sl-holo-refScale" min="0.5" max="2" step="0.05" value="1"/>
+                  <span class="val" id="val-holo-refScale">1.00</span>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="divider"></div>
+
+          <!-- 4.6 Layout -->
+          <div class="panel-section">
+            <span class="section-label">Layout</span>
+            <div class="btn-row" style="margin-bottom:8px;">
+              <button class="btn small" id="insp-layout-grid">Grid</button>
+              <button class="btn small" id="insp-layout-fan">Fan</button>
+              <button class="btn small" id="insp-layout-stack">Stack</button>
+              <button class="btn small" id="insp-layout-line">Line</button>
+            </div>
+            <div id="layout-params-grid">
+              <div class="slider-row">
+                <label>Spacing</label>
+                <input type="range" id="sl-grid-spacing" min="0.8" max="2.5" step="0.05" value="1.2"/ data-btn-step="0.1">
+                <span class="val" id="val-grid-spacing">1.20×</span>
+              </div>
+              <div style="display:flex; gap:8px; align-items:center; margin-top:6px;">
+                <div style="flex:1;">
+                  <div style="font-size:10px; color:var(--muted); margin-bottom:3px; text-transform:uppercase; letter-spacing:0.07em;">Columns</div>
+                  <div style="display:flex; align-items:center; gap:4px;">
+                    <input type="number" id="inp-grid-cols" min="1" max="20" value="" placeholder="Auto"
+                      style="width:100%; background:var(--panel2); border:1px solid var(--border); color:var(--text); font-family:var(--font-body); font-size:12px; padding:4px 7px; border-radius:4px; outline:none;"/>
+                  </div>
+                </div>
+                <div style="flex:1;">
+                  <div style="font-size:10px; color:var(--muted); margin-bottom:3px; text-transform:uppercase; letter-spacing:0.07em;">Rows</div>
+                  <div style="display:flex; align-items:center; gap:4px;">
+                    <input type="number" id="inp-grid-rows" min="1" max="20" value="" placeholder="Auto"
+                      style="width:100%; background:var(--panel2); border:1px solid var(--border); color:var(--text); font-family:var(--font-body); font-size:12px; padding:4px 7px; border-radius:4px; outline:none;"/>
+                  </div>
+                </div>
+              </div>
+              <div style="font-size:10px; color:var(--muted); margin-top:4px;" id="grid-info">Auto layout</div>
+            </div>
+            <div id="layout-params-fan" style="display:none;">
+              <div class="slider-row">
+                <label>Spread</label>
+                <input type="range" id="sl-fan-spread" min="5" max="180" step="1" value="60"/>
+                <span class="val" id="val-fan-spread">60°</span>
+              </div>
+              <div class="slider-row">
+                <label>Arc Depth</label>
+                <input type="range" id="sl-fan-arc" min="0" max="1" step="0.05" value="0.3"/ data-btn-step="0.1">
+                <span class="val" id="val-fan-arc">0.30</span>
+              </div>
+            </div>
+            <div id="layout-params-stack" style="display:none;">
+              <div class="slider-row">
+                <label>Offset</label>
+                <input type="range" id="sl-stack-offset" min="0" max="20" step="1" value="4"/>
+                <span class="val" id="val-stack-offset">4px</span>
+              </div>
+              <div class="slider-row">
+                <label>Scatter</label>
+                <input type="range" id="sl-stack-scatter" min="0" max="45" step="1" value="8"/>
+                <span class="val" id="val-stack-scatter">8°</span>
+              </div>
+              <button class="btn small" id="btn-reshuffle">⟳ Reshuffle</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- TEXT INSPECTOR (shown instead of card panels when a text object is selected) -->
+        <div id="inspector-text" style="display:none;">
+          <div class="panel-section">
+            <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:8px;">
+              <span class="section-label" style="margin:0;" id="text-sel-header">Text Layer</span>
+            </div>
+            <div class="btn-row">
+              <button class="btn small danger" id="btn-delete-text">✕ Delete</button>
+              <button class="btn small" id="btn-deselect-text">Deselect</button>
+            </div>
+          </div>
+          <div class="divider"></div>
+          <div class="panel-section">
+            <span class="section-label">Content</span>
+            <textarea id="inp-text-content" rows="3"
+              style="width:100%; box-sizing:border-box; background:var(--panel2); border:1px solid var(--border);
+                     color:var(--text); font-family:var(--font-body); font-size:12px; padding:6px 8px;
+                     border-radius:4px; outline:none; resize:vertical; line-height:1.5;"></textarea>
+          </div>
+          <div class="divider"></div>
+          <div class="panel-section">
+            <span class="section-label">Typography</span>
+            <div class="slider-row">
+              <label>Font</label>
+              <select id="sel-text-font" class="sfx-sel" style="flex:1;">
+                <option value="Cinzel, serif">Cinzel</option>
+                <option value="'Crimson Pro', serif">Crimson Pro</option>
+              </select>
+            </div>
+            <div class="slider-row">
+              <label>Size</label>
+              <input type="range" id="sl-text-size" min="8" max="120" step="1" value="24"/>
+              <span class="val" id="val-text-size">24</span>
+            </div>
+            <div class="slider-row">
+              <label>Colour</label>
+              <input type="color" id="pick-text-color" value="#ffffff"/>
+            </div>
+            <div class="slider-row">
+              <label>Align</label>
+              <div class="btn-row" style="gap:4px; margin:0;">
+                <button class="btn small text-align-btn active" data-align="left">≡L</button>
+                <button class="btn small text-align-btn" data-align="center">≡C</button>
+                <button class="btn small text-align-btn" data-align="right">≡R</button>
+              </div>
+            </div>
+            <div class="slider-row">
+              <label>Line H.</label>
+              <input type="range" id="sl-text-lh" min="0.8" max="2.5" step="0.05" value="1.3"/ data-btn-step="0.1">
+              <span class="val" id="val-text-lh">1.30</span>
+            </div>
+            <div class="slider-row">
+              <label>Opacity</label>
+              <input type="range" id="sl-text-opacity" min="0.05" max="1" step="0.01" value="1"/ data-btn-step="0.05">
+              <span class="val" id="val-text-opacity">1.00</span>
+            </div>
+          </div>
+          <div class="divider"></div>
+          <div class="panel-section">
+            <span class="section-label">Transform</span>
+            <div class="slider-row">
+              <label>Rotation</label>
+              <input type="range" id="sl-text-rot" min="-180" max="180" step="1" value="0"/>
+              <span class="val" id="val-text-rot">0°</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- RECT INSPECTOR -->
+        <div id="inspector-rect" style="display:none;">
+          <div class="panel-section">
+            <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:8px;">
+              <span class="section-label" style="margin:0;" id="rect-sel-header">Rectangle Layer</span>
+            </div>
+            <div class="btn-row">
+              <button class="btn small danger" id="btn-delete-rect">✕ Delete</button>
+              <button class="btn small" id="btn-deselect-rect">Deselect</button>
+            </div>
+          </div>
+          <div class="divider"></div>
+          <div class="panel-section">
+            <span class="section-label">Fill</span>
+            <div class="slider-row">
+              <label>Colour</label>
+              <input type="color" id="pick-rect-fill" value="#1a1a2e"/>
+            </div>
+            <div class="slider-row">
+              <label>Opacity</label>
+              <input type="range" id="sl-rect-fill-opacity" min="0" max="1" step="0.01" value="0.8"/ data-btn-step="0.05">
+              <span class="val" id="val-rect-fill-opacity">0.80</span>
+            </div>
+          </div>
+          <div class="divider"></div>
+          <div class="panel-section">
+            <span class="section-label">Stroke</span>
+            <div class="slider-row">
+              <label>Colour</label>
+              <input type="color" id="pick-rect-stroke" value="#c9a84c"/>
+            </div>
+            <div class="slider-row">
+              <label>Width</label>
+              <input type="range" id="sl-rect-stroke-width" min="0" max="20" step="0.5" value="1"/>
+              <span class="val" id="val-rect-stroke-width">1.0</span>
+            </div>
+            <div class="slider-row">
+              <label>Opacity</label>
+              <input type="range" id="sl-rect-stroke-opacity" min="0" max="1" step="0.01" value="1"/ data-btn-step="0.05">
+              <span class="val" id="val-rect-stroke-opacity">1.00</span>
+            </div>
+          </div>
+          <div class="divider"></div>
+          <div class="panel-section">
+            <span class="section-label">Shape</span>
+            <div class="slider-row">
+              <label>Radius</label>
+              <input type="range" id="sl-rect-radius" min="0" max="60" step="1" value="0"/>
+              <span class="val" id="val-rect-radius">0</span>
+            </div>
+          </div>
+          <div class="divider"></div>
+          <div class="panel-section">
+            <span class="section-label">Transform</span>
+            <div class="slider-row">
+              <label>Rotation</label>
+              <input type="range" id="sl-rect-rot" min="-180" max="180" step="1" value="0"/>
+              <span class="val" id="val-rect-rot">0°</span>
+            </div>
+          </div>
+        </div>
+
+        <div id="inspector-custom" style="display:none;">
+
+          <div class="panel-section">
+            <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:8px;">
+              <span class="section-label" style="margin:0;" id="cb-sel-header">Custom Card</span>
+              <button class="btn small gold" id="btn-cb-done">✓ Save &amp; Done</button>
+            </div>
+            <div class="slider-row" style="margin-bottom:0;">
+              <label>Name</label>
+              <input type="text" id="cb-card-name" placeholder="Card name..." style="flex:1; background:var(--panel2); border:1px solid var(--border); color:var(--text); font-family:var(--font-body); font-size:11px; padding:4px 6px; border-radius:4px; outline:none;"/>
+            </div>
+          </div>
+          <div class="divider"></div>
+
+          <div class="panel-section">
+            <span class="section-label">Art</span>
+            <div style="position:relative; width:100%; aspect-ratio:110/60; background:var(--panel2); border:1px dashed var(--border); border-radius:4px; margin-bottom:6px; overflow:hidden; display:flex; align-items:center; justify-content:center;">
+              <img id="cb-art-preview" style="display:none; width:100%; height:100%; object-fit:cover;" alt=""/>
+              <span id="cb-art-empty" style="font-size:10px; color:var(--muted);">No art uploaded</span>
+            </div>
+            <div class="btn-row" style="margin-bottom:0;">
+              <label class="btn small" style="cursor:pointer; flex:1; text-align:center;">⬆ Upload<input type="file" id="cb-art-file" accept="image/*" style="display:none;"/></label>
+              <button class="btn small cb-fit-btn active" data-fit="cover">Cover</button>
+              <button class="btn small cb-fit-btn" data-fit="contain">Contain</button>
+            </div>
+          </div>
+          <div class="divider"></div>
+
+          <div class="panel-section">
+            <span class="section-label">Text</span>
+            <div style="font-size:10px; color:var(--muted); margin-bottom:4px; letter-spacing:0.06em; font-family:var(--font-head);">HEADLINE</div>
+            <input type="text" id="cb-headline-text" placeholder="Card Name..." style="width:100%; box-sizing:border-box; background:var(--panel2); border:1px solid var(--border); color:var(--text); font-family:var(--font-body); font-size:12px; padding:6px 8px; border-radius:4px; outline:none; margin-bottom:6px;"/>
+            <div class="slider-row">
+              <label>Size</label>
+              <input type="range" id="cb-headline-size" min="8" max="24" step="1" value="14"/>
+              <span class="val" id="cb-headline-size-val">14px</span>
+            </div>
+            <div style="display:flex; align-items:center; gap:6px; margin-bottom:6px;">
+              <input type="color" id="cb-headline-color" value="#c9a84c"/>
+              <div class="btn-row" style="margin-bottom:0; flex:1;">
+                <button class="btn small cb-align-btn" data-layer="headline" data-align="left">≡L</button>
+                <button class="btn small cb-align-btn active" data-layer="headline" data-align="center">≡C</button>
+                <button class="btn small cb-align-btn" data-layer="headline" data-align="right">≡R</button>
+              </div>
+            </div>
+            <div class="slider-row">
+              <label>↕ Y</label>
+              <input type="range" id="cb-headline-y" min="0" max="100" step="1" value="8"/>
+              <span class="val" id="cb-headline-y-val">8%</span>
+            </div>
+            <div class="slider-row" style="margin-bottom:10px;">
+              <label>↔ X</label>
+              <input type="range" id="cb-headline-x" min="-50" max="50" step="1" value="0"/>
+              <span class="val" id="cb-headline-x-val">0%</span>
+            </div>
+
+            <div style="font-size:10px; color:var(--muted); margin-bottom:4px; letter-spacing:0.06em; font-family:var(--font-head);">BODY</div>
+            <textarea id="cb-body-text" rows="3" placeholder="Card description..." style="width:100%; box-sizing:border-box; background:var(--panel2); border:1px solid var(--border); color:var(--text); font-family:var(--font-body); font-size:11px; padding:6px 8px; border-radius:4px; outline:none; resize:vertical; margin-bottom:6px;"></textarea>
+            <div class="slider-row">
+              <label>Size</label>
+              <input type="range" id="cb-body-size" min="7" max="14" step="1" value="9"/>
+              <span class="val" id="cb-body-size-val">9px</span>
+            </div>
+            <div style="display:flex; align-items:center; gap:6px; margin-bottom:6px;">
+              <input type="color" id="cb-body-color" value="#d0c0a0"/>
+              <span style="font-size:11px; color:var(--muted);">Body colour</span>
+            </div>
+            <div class="slider-row">
+              <label>↕ Y</label>
+              <input type="range" id="cb-body-y" min="0" max="100" step="1" value="62"/>
+              <span class="val" id="cb-body-y-val">62%</span>
+            </div>
+            <div class="slider-row">
+              <label>↔ X</label>
+              <input type="range" id="cb-body-x" min="-50" max="50" step="1" value="0"/>
+              <span class="val" id="cb-body-x-val">0%</span>
+            </div>
+          </div>
+          <div class="divider"></div>
+
+          <div class="panel-section">
+            <span class="section-label">Corner Icons</span>
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:4px; margin-bottom:6px;">
+              <button class="btn small cb-icon-slot" data-corner="tl" style="font-size:10px; letter-spacing:0.05em;">↖ TL</button>
+              <button class="btn small cb-icon-slot" data-corner="tr" style="font-size:10px; letter-spacing:0.05em;">TR ↗</button>
+              <button class="btn small cb-icon-slot" data-corner="bl" style="font-size:10px; letter-spacing:0.05em;">↙ BL</button>
+              <button class="btn small cb-icon-slot" data-corner="br" style="font-size:10px; letter-spacing:0.05em;">BR ↘</button>
+            </div>
+            <!-- Inline picker — shown when a slot is active -->
+            <div id="cb-icon-picker" style="display:none; background:var(--panel2); border:1px solid var(--border); border-radius:6px; padding:8px;">
+              <div style="font-size:9px; color:var(--muted); letter-spacing:0.08em; font-family:var(--font-head); margin-bottom:6px;" id="cb-icon-picker-label">PICK ICON — TL</div>
+              <div id="cb-icon-preset-grid" style="display:flex; flex-wrap:wrap; gap:4px; margin-bottom:8px;">
+                <!-- populated by card-builder.js -->
+              </div>
+              <div style="display:flex; gap:6px; align-items:center;">
+                <input type="color" id="cb-icon-color" value="#ffffff" title="Icon tint colour"/>
+                <label class="btn small" style="cursor:pointer; flex:1; text-align:center;">⬆ Upload<input type="file" id="cb-icon-upload" accept="image/*,image/svg+xml" style="display:none;"/></label>
+                <button class="btn small danger" id="cb-icon-clear">✕</button>
+              </div>
+            </div>
+          </div>
+          <div class="divider"></div>
+
+          <div class="panel-section">
+            <span class="section-label">Border</span>
+            <div id="cb-border-presets" style="display:flex; gap:6px; flex-wrap:wrap; margin-bottom:10px;"></div>
+            <details>
+              <summary style="font-size:10px; color:var(--muted); cursor:pointer; letter-spacing:0.06em; font-family:var(--font-head); padding:4px 0; user-select:none;">CUSTOMIZE ▾</summary>
+              <div style="padding-top:8px;">
+                <div style="display:flex; gap:8px; margin-bottom:6px; align-items:center;">
+                  <input type="color" id="cb-border-outer" value="#c9a84c" title="Outer stroke"/>
+                  <span style="font-size:10px; color:var(--muted); flex:1;">Outer</span>
+                  <input type="color" id="cb-border-inner" value="#8a6a2a" title="Inner stroke"/>
+                  <span style="font-size:10px; color:var(--muted);">Inner</span>
+                </div>
+                <div class="slider-row">
+                  <label>Thickness</label>
+                  <input type="range" id="cb-border-thick" min="1" max="6" step="0.5" value="2"/>
+                  <span class="val" id="cb-border-thick-val">2px</span>
+                </div>
+                <div class="slider-row">
+                  <label>Glow</label>
+                  <input type="range" id="cb-border-glow" min="0" max="30" step="1" value="14"/>
+                  <span class="val" id="cb-border-glow-val">14</span>
+                </div>
+              </div>
+            </details>
+          </div>
+          <div class="divider"></div>
+
+          <div class="panel-section">
+            <span class="section-label">Background Fill</span>
+            <div style="display:flex; align-items:center; gap:8px; margin-bottom:4px;">
+              <input type="color" id="cb-base-color1" value="#1a1a2e" title="Start colour"/>
+              <span style="font-size:10px; color:var(--muted);">→</span>
+              <input type="color" id="cb-base-color2" value="#0a0a18" title="End colour"/>
+              <span style="font-size:10px; color:var(--muted); flex:1;">Gradient</span>
+            </div>
+          </div>
+
+        </div>
+
+      </div>
+    </div>
+  </div><!-- /workspace -->
+</div><!-- /app -->
+
+<!-- ── MOBILE NAV BAR ── -->
+<nav id="mobile-nav" role="navigation" aria-label="Mobile navigation">
+  <button class="mnav-btn" id="mnav-left" aria-label="Layers and Assets panel">
+    <span style="font-size:20px;">&#9776;</span>
+    <span>Layers</span>
+  </button>
+<button class="mnav-btn" id="mnav-timeline" aria-label="Toggle timeline">
+    <span style="font-size:20px;">&#9654;</span>
+    <span>Timeline</span>
+  </button>
+  <button class="mnav-btn" id="mnav-right" aria-label="Inspector panel">
+    <span style="font-size:20px;">&#9881;</span>
+    <span>Inspect</span>
+  </button>
+</nav>
+
+<!-- ── DRAWER BACKDROP ── -->
+<div id="drawer-overlay"></div>
+
+<!-- ── FLOATING SHOWCASE BUTTON ── -->
+<button id="sc-float-btn" title="Enter Showcase Mode (fullscreen + capture)">
+  <span>✦</span> Showcase
+</button>
+
+<!-- ── SHOWCASE HUD ── -->
+<div id="showcase-hud">
+  <button id="sc-close"     class="sc-btn"          title="Exit Showcase (Esc)">✕</button>
+  <div class="sc-divider"></div>
+  <button id="sc-playpause" class="sc-btn"          title="Play animation">▶</button>
+  <button id="sc-screenshot" class="sc-btn sc-btn-gold" title="Screenshot (PNG)">📷</button>
+  <button id="sc-record"    class="sc-btn sc-btn-rec" title="Record 6s video">●</button>
+  <span   id="sc-rec-status"></span>
+</div>
+
+<!-- ── FRAME SELECTOR (shown above HUD when screenshot tapped) ── -->
+<div id="sc-frame-panel">
+  <div id="sc-frame-ratios"></div>
+  <div class="sc-frame-actions">
+    <button id="sc-capture-btn" class="sc-capture-btn">✦ Capture PNG</button>
+    <button id="sc-frame-cancel" class="sc-cancel-btn">Cancel</button>
+  </div>
+</div>
+
+<!-- ── GYRO PERMISSION (iOS) ── -->
+<div id="gyro-permission-overlay">
+  <div class="gyro-icon">✦</div>
+  <h3>Enable Motion</h3>
+  <p>Tilt your phone to move the card.<br>This uses your device's gyroscope.</p>
+  <button class="gyro-allow-btn" id="gyro-allow-btn">Allow Motion</button>
+  <button class="gyro-skip-btn" id="gyro-skip-btn">Skip</button>
+</div>
+
+<!-- ── INSPECTOR PILL BUTTON ── -->
+<div id="inspector-pull-handle" role="button" aria-label="Open inspector panel" tabindex="0">
+  <span style="font-size:15px;line-height:1;">⚙</span>
+  <span>Inspect</span>
+</div>
+
+<!-- ── TOUCH HINT ── -->
+<div id="touch-hint">Pinch to zoom &bull; Two fingers to pan</div>
+
+
+<div id="toast"></div>
+<div id="drag-ghost"><img id="drag-ghost-img" src="" alt=""/></div>
+
+<!-- ===== EXPORT MODAL ===== -->
+<!-- Export frame overlay — shown directly on canvas in frame-pick mode -->
+<div id="export-frame-overlay" style="display:none; position:fixed; inset:0; z-index:200; pointer-events:none;">
+  <!-- Dark vignette around frame — four rects -->
+  <div id="efv-top"    style="position:absolute; background:rgba(0,0,0,0.55); pointer-events:none;"></div>
+  <div id="efv-bottom" style="position:absolute; background:rgba(0,0,0,0.55); pointer-events:none;"></div>
+  <div id="efv-left"   style="position:absolute; background:rgba(0,0,0,0.55); pointer-events:none;"></div>
+  <div id="efv-right"  style="position:absolute; background:rgba(0,0,0,0.55); pointer-events:none;"></div>
+  <!-- The frame box itself -->
+  <div id="export-frame-box" style="position:absolute; border:2px solid #C9A84C; box-shadow:0 0 0 1px rgba(0,0,0,0.5), inset 0 0 0 1px rgba(201,168,76,0.2); cursor:move; pointer-events:auto; box-sizing:border-box;">
+    <!-- Label -->
+    <div id="ef-label" style="position:absolute; top:-22px; left:0; font-family:'Cinzel',serif; font-size:11px; color:#C9A84C; white-space:nowrap; pointer-events:none; text-shadow:0 1px 3px #000;"></div>
+    <!-- Corner resize handles -->
+    <div class="ef-handle ef-nw" data-dir="nw"></div>
+    <div class="ef-handle ef-ne" data-dir="ne"></div>
+    <div class="ef-handle ef-sw" data-dir="sw"></div>
+    <div class="ef-handle ef-se" data-dir="se"></div>
+    <!-- Edge resize handles -->
+    <div class="ef-handle ef-n"  data-dir="n"></div>
+    <div class="ef-handle ef-s"  data-dir="s"></div>
+    <div class="ef-handle ef-w"  data-dir="w"></div>
+    <div class="ef-handle ef-e"  data-dir="e"></div>
+    <!-- Crosshair centre -->
+    <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none;opacity:0.25;">
+      <div style="position:absolute;width:1px;height:100%;background:#C9A84C;"></div>
+      <div style="position:absolute;height:1px;width:100%;background:#C9A84C;"></div>
+    </div>
+  </div>
+</div>
+
+
+<script type="module" src="js/app.js"></script>
+<script type="module" src="js/card-builder.js"></script>
+</body>
+</html>

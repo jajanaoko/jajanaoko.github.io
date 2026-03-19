@@ -1,0 +1,42 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python3:*)",
+      "Bash(wc -l \"/Users/markokolic/Documents/Arcana Glam/js/\"*.js)",
+      "Bash(for f:*)",
+      "Bash(do echo:*)",
+      "Read(//Users/markokolic/Documents/Arcana Glam/js/**)",
+      "Bash(done)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://127.0.0.1:5500/Arcana_Glam_Mobile.html)",
+      "Bash(awk 'NR>=709 && NR<=780' \"/Users/markokolic/Documents/Arcana Glam/js/app.js\")",
+      "Bash(awk 'NR>=696 && NR<=730' \"/Users/markokolic/Documents/Arcana Glam/js/app.js\")",
+      "Bash(sed -n '13,13p' \"/Users/markokolic/Documents/Arcana Glam/js/input-controls.js\")",
+      "Bash(sed -n '11,11p' \"/Users/markokolic/Documents/Arcana Glam/js/layers.js\")",
+      "Bash(sed -n '10,10p' \"/Users/markokolic/Documents/Arcana Glam/js/timeline.js\")",
+      "Bash(sed -i '' \"s|import { markDirty, haptic, showToast } from ''./app.js'';|import { markDirty, haptic, showToast, syncRefs, updateCardCount, hideEmpty, updateInspector, registerAfterRenderHook, registerUpdateInspectorHook } from ''./app.js'';|\" \"/Users/markokolic/Documents/Arcana Glam/js/mobile.js\")",
+      "Bash(sed -i '' \"s|import { cardAtPoint, selectCard, deselectAll } from ''./layers.js'';|import { cardAtPoint, selectCard, deselectAll, renderLayers } from ''./layers.js'';|\" \"/Users/markokolic/Documents/Arcana Glam/js/mobile.js\")",
+      "Bash(awk 'NR>=709 && NR<=730' \"/Users/markokolic/Documents/Arcana Glam/js/app.js\")",
+      "Bash(__NEW_LINE_a7aea9c9f5861acb__ echo:*)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" \"http://127.0.0.1:5500/js/app.js\")",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" \"http://127.0.0.1:5500/js/mobile.js\")",
+      "Bash(grep -n \"^} // end initInputControls\\\\|^} *$\\\\|^export function\\\\|^function \" \"/Users/markokolic/Documents/Arcana Glam/js/input-controls.js\")",
+      "Bash(node --check \"/Users/markokolic/Documents/Arcana Glam/js/layers.js\")",
+      "Bash(sed -n '114,180p' \"/Users/markokolic/Documents/Arcana Glam/js/performance.js\")",
+      "Bash(sed -n '575,592p' \"/Users/markokolic/Documents/Arcana Glam/js/layers.js\")",
+      "Bash(sed -n '345,360p' \"/Users/markokolic/Documents/Arcana Glam/js/timeline.js\")",
+      "Bash(sed -n '155,170p' \"/Users/markokolic/Documents/Arcana Glam/js/fx-engine.js\")",
+      "Bash(sed -n '560,585p' \"/Users/markokolic/Documents/Arcana Glam/js/layers.js\")",
+      "Bash(sed -n '154,163p' \"/Users/markokolic/Documents/Arcana Glam/js/fx-engine.js\")",
+      "Bash(sed -n '905,935p' \"/Users/markokolic/Documents/Arcana Glam/js/app.js\")",
+      "Bash(node --input-type=module)",
+      "Bash(open \"http://localhost:8080/Arcana_Glam_Mobile.html\")",
+      "Bash(python3 -c \":*)",
+      "Bash(grep -n \"TEXTURE_SRCS\" js/*.js)",
+      "Bash(grep -n \"PRESET_DEFAULTS\" js/*.js)",
+      "Bash(sed -n '9,1731p' \"/Users/markokolic/Documents/Arcana Glam/Arcana_Glam_Mobile.html\")",
+      "Bash(\"/Users/markokolic/Documents/Arcana Glam/css/main.css\")",
+      "Bash(grep -o \"{ name: ''[^'']*''\" \"/Users/markokolic/Documents/Arcana Glam/js/state.js\")",
+      "Bash(cat:*)"
+    ]
+  }
+}

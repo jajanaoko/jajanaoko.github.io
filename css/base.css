@@ -1,0 +1,23 @@
+/* ===== base.css ===== */
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #0A0A0F;
+    --panel: #0F0F18;
+    --panel2: #13131F;
+    --border: #2A2A40;
+    --gold: #C9A84C;
+    --gold-light: #E8C97A;
+    --amber: #FF9F45;
+    --text: #E8E0D0;
+    --muted: #6B6580;
+    --purple: #7B5EA7;
+    --font-head: 'Cinzel', serif;
+    --font-body: 'Crimson Pro', serif;
+  }
+  html, body { width: 100%; height: 100%; overflow: hidden; background: var(--bg); color: var(--text); font-family: var(--font-body); }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar { width: 4px; height: 4px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+  ::-webkit-scrollbar-thumb:hover { background: var(--muted); }
