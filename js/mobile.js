@@ -701,10 +701,7 @@ export function initMobile() {
       if (!window._gyroActive) return;
 
       // ── Target decay — drifts back to neutral when phone/mouse is still ───
-      // Suppressed for real sensor: the calibrated relative-tilt target already
-      // returns to 0 when the phone returns to its resting angle.
-      // Kept for mouse/touch-drag: returns card to center when input stops.
-      if (!_dragActive && !_usingSensor) {
+      if (!_dragActive) {
         _targetX *= 0.96;
         _targetY *= 0.96;
       }
@@ -826,99 +823,53 @@ export function initMobile() {
       );
     }
 
-    // ── Real sensor (only fires meaningful data on HTTPS) ─────────────────
-    // Uses angular velocity (delta per frame) rather than absolute offset so
-    // the card only reacts to phone movement, not its resting orientation.
-    // Picking up from a table or holding at any angle causes no drift.
+    // ── Real sensor ───────────────────────────────────────────────────────
+    // Pure delta approach: card is always neutral when phone is still.
+    // Only angular velocity (change per event) moves the card.
+    // Target decays to 0 in tick() so card returns to center when still.
     var _sensorZeroCount = 0;
     var _rawG = 0, _rawB = 0, _prevRawG = 0, _prevRawB = 0;
     var _rawInitDone = false;
-    // Calibrated resting orientation — snaps to first reading then rapidly
-    // converges over ~1 s so the baseline is correct regardless of phone angle.
-    var _calGamma = 0, _calBeta = 0;
-    // Total orientation events received since activation (drives phase-1 speed).
-    var _calFrames = 0;
-    // Counts consecutive near-still events for phase-2 recalibration trigger.
-    var _stillFrames = 0;
-    // True once a real sensor event has been received (vs. mouse-only desktop).
-    // Used to suppress target decay in tick() — absolute relative targeting
-    // already returns card to center when phone returns to resting position.
-    var _usingSensor = false;
 
     function onDeviceOrientation(e) {
       var g = e.gamma, b = e.beta;
       if (!Number.isFinite(g) || !Number.isFinite(b)) return;
       if (g === 0 && b === 0) {
         _sensorZeroCount++;
-        if (_sensorZeroCount >= 10) return; // sustained zeros = blocked sensor
+        if (_sensorZeroCount >= 10) return;
         return;
       }
       _sensorZeroCount = 0;
 
-      // First reading — seed raw state and make an initial calibration guess.
-      // Phase-1 fast convergence will correct any error within ~1 s.
+      // First event: seed previous values, produce no delta
       if (!_rawInitDone) {
         _rawG = g; _rawB = b;
         _prevRawG = g; _prevRawB = b;
-        _calGamma = g; _calBeta = b;
-        _calFrames = 0; _stillFrames = 0;
         _rawInitDone = true;
-        _usingSensor = true;
         return;
       }
 
-      // Low-pass filter to reduce sensor noise
+      // Low-pass filter
       _rawG += (g - _rawG) * 0.25;
       _rawB += (b - _rawB) * 0.25;
 
-      // Angular velocity: change since last event, clamped to ±5°
+      // Angular velocity clamped to ±5° per event
       var dg = Math.max(-5, Math.min(5, _rawG - _prevRawG));
       var db = Math.max(-5, Math.min(5, _rawB - _prevRawB));
       _prevRawG = _rawG;
       _prevRawB = _rawB;
 
-      // ── Two-phase calibration ─────────────────────────────────────────────
-      // Phase 1 — first 60 events (~1.2 s at 50 Hz): alpha ramps linearly
-      //   from ≈1 down to 0.  When alpha≈1 the baseline tracks raw perfectly
-      //   so relative tilt ≈ 0 and the card stays neutral.  As alpha falls the
-      //   card gradually becomes responsive.  This handles two hard cases:
-      //     • Sensor lag on iOS (beta starts near 0, ramps to real value) —
-      //       alpha≈1 keeps cal glued to raw so rel stays near 0 the whole time.
-      //     • Phone moving during showcase entry — same: cal chases raw, card
-      //       barely reacts, then settles once the phone is still.
-      // Phase 2 — after 1.2 s: stillness-based.  Only recalibrates after the
-      //   device has been near-still for ≥1.5 s so intentional tilts are never
-      //   silently absorbed.
-      _calFrames++;
-      var calAlpha;
-      if (_calFrames <= 60) {
-        calAlpha = Math.max(0, 1.0 - _calFrames / 60);
-      } else {
-        var nearStill = Math.abs(dg) < 0.8 && Math.abs(db) < 0.8;
-        if (nearStill) {
-          _stillFrames = Math.min(_stillFrames + 1, 300);
-          calAlpha = _stillFrames >= 75 ? 0.08 : 0.003;
-        } else {
-          _stillFrames = 0;
-          calAlpha = 0;
-        }
-      }
-      _calGamma += (_rawG - _calGamma) * calAlpha;
-      _calBeta  += (_rawB - _calBeta)  * calAlpha;
+      // Dead zone — ignore sensor noise
+      if (Math.abs(dg) < 0.2 && Math.abs(db) < 0.2) return;
 
-      // ── Relative tilt from calibrated resting position → card target ──────
-      // ±45° from rest maps to full card deflection (-1..1).
-      // This is absolute (not delta), so the card holds its position while the
-      // phone is still and returns to center when returned to resting angle.
-      var relG = Math.max(-45, Math.min(45, _rawG - _calGamma));
-      var relB = Math.max(-45, Math.min(45, _rawB - _calBeta));
-      setTarget(relG / 45, -relB / 45, null);
+      // Export deltas for 3D physics impulse
+      window._gyroDeltaGamma = dg;
+      window._gyroDeltaBeta  = db;
 
-      // Export deltas for showcase-3d.js acceleration impulse — only when moving
-      if (Math.abs(dg) >= 0.2 || Math.abs(db) >= 0.2) {
-        window._gyroDeltaGamma = dg;
-        window._gyroDeltaBeta  = db;
-      }
+      // Nudge target by angular velocity; decays to 0 in tick() when still
+      var nx = Math.max(-1, Math.min(1, _targetX + dg / 55));
+      var ny = Math.max(-1, Math.min(1, _targetY - db / 45));
+      setTarget(nx, ny, null);
     }
 
     function onDeviceMotion(e) {
@@ -939,7 +890,6 @@ export function initMobile() {
       _velX = 0; _velY = 0; _velZ = 0; _wobbleT = 0;
       _sensorZeroCount = 0;
       _rawInitDone = false;
-      _calGamma = 0; _calBeta = 0; _calFrames = 0; _stillFrames = 0; _usingSensor = false;
       window._gyroActive = true;
       if (st.canvasWrap) st.canvasWrap.dataset.gyro = '1';
       // Attach all inputs — whichever provides data wins
@@ -965,7 +915,6 @@ export function initMobile() {
       window._gyroAccelX   = 0;
       window._gyroAccelY   = 0;
       window._gyroAccelMag = 0;
-      _calGamma = 0; _calBeta = 0; _calFrames = 0; _stillFrames = 0; _usingSensor = false;
       _targetX = 0; _targetY = 0; _targetZ = _baseDepth;
       _smoothX = 0; _smoothY = 0; _smoothZ = _baseDepth;
       _velX = 0; _velY = 0; _velZ = 0;
