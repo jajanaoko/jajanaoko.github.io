@@ -834,8 +834,10 @@ export function initMobile() {
     var _rawG = 0, _rawB = 0, _prevRawG = 0, _prevRawB = 0;
     var _rawInitDone = false;
     // Calibrated resting orientation — snaps to device angle on first reading,
-    // then slowly drifts to track how the user is actually holding the phone.
+    // then recalibrates when the device has been held still long enough.
     var _calGamma = 0, _calBeta = 0;
+    // Counts consecutive near-still orientation events for recalibration trigger.
+    var _stillFrames = 0;
     // True once a real sensor event has been received (vs. mouse-only desktop).
     // Used to suppress target decay in tick() — absolute relative targeting
     // already returns card to center when phone returns to resting position.
@@ -872,12 +874,21 @@ export function initMobile() {
       _prevRawG = _rawG;
       _prevRawB = _rawB;
 
-      // ── Calibration: track resting orientation when phone is near-still ──
-      // alpha = 0.008 → ~5 s to absorb a new resting angle (table vs. hand).
-      // Paused during active movement so intentional tilts are not swallowed.
-      if (Math.abs(dg) < 0.8 && Math.abs(db) < 0.8) {
-        _calGamma += (_rawG - _calGamma) * 0.008;
-        _calBeta  += (_rawB - _calBeta)  * 0.008;
+      // ── Stillness-based recalibration ─────────────────────────────────────
+      // Count consecutive near-still events (~50 Hz → 75 frames ≈ 1.5 s).
+      // Below threshold: tiny background drift keeps things from freezing.
+      // Above threshold: fast convergence so the card returns to center quickly
+      // (~1 s) after the user settles into a new holding position.
+      var nearStill = Math.abs(dg) < 0.8 && Math.abs(db) < 0.8;
+      if (nearStill) {
+        _stillFrames = Math.min(_stillFrames + 1, 300);
+      } else {
+        _stillFrames = 0;
+      }
+      var calAlpha = nearStill ? (_stillFrames >= 75 ? 0.08 : 0.003) : 0;
+      if (calAlpha > 0) {
+        _calGamma += (_rawG - _calGamma) * calAlpha;
+        _calBeta  += (_rawB - _calBeta)  * calAlpha;
       }
 
       // ── Relative tilt from calibrated resting position → card target ──────
@@ -913,7 +924,7 @@ export function initMobile() {
       _velX = 0; _velY = 0; _velZ = 0; _wobbleT = 0;
       _sensorZeroCount = 0;
       _rawInitDone = false;
-      _calGamma = 0; _calBeta = 0; _usingSensor = false;
+      _calGamma = 0; _calBeta = 0; _stillFrames = 0; _usingSensor = false;
       window._gyroActive = true;
       if (st.canvasWrap) st.canvasWrap.dataset.gyro = '1';
       // Attach all inputs — whichever provides data wins
@@ -939,7 +950,7 @@ export function initMobile() {
       window._gyroAccelX   = 0;
       window._gyroAccelY   = 0;
       window._gyroAccelMag = 0;
-      _calGamma = 0; _calBeta = 0; _usingSensor = false;
+      _calGamma = 0; _calBeta = 0; _stillFrames = 0; _usingSensor = false;
       _targetX = 0; _targetY = 0; _targetZ = _baseDepth;
       _smoothX = 0; _smoothY = 0; _smoothZ = _baseDepth;
       _velX = 0; _velY = 0; _velZ = 0;
