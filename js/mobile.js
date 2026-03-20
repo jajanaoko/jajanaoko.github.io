@@ -863,10 +863,24 @@ export function initMobile() {
       // Dead zone — ignore tiny sensor noise (< 0.2° change)
       if (Math.abs(dg) < 0.2 && Math.abs(db) < 0.2) return;
 
+      // Export raw deltas for showcase-3d.js secondary impulse
+      window._gyroDeltaGamma = dg;
+      window._gyroDeltaBeta  = db;
+
       // Nudge target by velocity; target decays to 0 in tick() when no input
       var nx = Math.max(-1, Math.min(1, _targetX + dg / 55));
       var ny = Math.max(-1, Math.min(1, _targetY - db / 45));
       setTarget(nx, ny, null);
+    }
+
+    function onDeviceMotion(e) {
+      var acc = e.accelerationIncludingGravity || e.acceleration;
+      if (!acc) return;
+      var ax = acc.x || 0;
+      var ay = acc.y || 0;
+      window._gyroAccelX   = ax;
+      window._gyroAccelY   = ay;
+      window._gyroAccelMag = Math.sqrt(ax * ax + ay * ay);
     }
 
     // ── Lifecycle ─────────────────────────────────────────────────────────
@@ -881,6 +895,7 @@ export function initMobile() {
       if (st.canvasWrap) st.canvasWrap.dataset.gyro = '1';
       // Attach all inputs — whichever provides data wins
       window.addEventListener('deviceorientation', onDeviceOrientation, { passive: true });
+      window.addEventListener('devicemotion',      onDeviceMotion,      { passive: true });
       window.addEventListener('mousemove', onMouseMove, { passive: true });
       var cv = document.getElementById('main-canvas');
       if (cv) {
@@ -894,8 +909,13 @@ export function initMobile() {
     function deactivate() {
       if (!window._gyroActive) return;
       window._gyroActive = false;
-      window._gyroTiltX  = 0;
-      window._gyroTiltY  = 0;
+      window._gyroTiltX    = 0;
+      window._gyroTiltY    = 0;
+      window._gyroDeltaGamma = 0;
+      window._gyroDeltaBeta  = 0;
+      window._gyroAccelX   = 0;
+      window._gyroAccelY   = 0;
+      window._gyroAccelMag = 0;
       _targetX = 0; _targetY = 0; _targetZ = _baseDepth;
       _smoothX = 0; _smoothY = 0; _smoothZ = _baseDepth;
       _velX = 0; _velY = 0; _velZ = 0;
@@ -904,6 +924,7 @@ export function initMobile() {
       if (_rafId) { cancelAnimationFrame(_rafId); _rafId = null; }
       if (st.canvasWrap) { st.canvasWrap.dataset.gyro = '0'; st.canvasWrap.style.transform = ''; }
       window.removeEventListener('deviceorientation', onDeviceOrientation);
+      window.removeEventListener('devicemotion',      onDeviceMotion);
       window.removeEventListener('mousemove', onMouseMove);
       var cv = document.getElementById('main-canvas');
       if (cv) {

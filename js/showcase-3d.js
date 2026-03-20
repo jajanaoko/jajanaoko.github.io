@@ -25,22 +25,25 @@ var CARD_THICK  = 0.018;  // realistic card thinness
 var CORNER_R    = 0.065;  // corner radius relative to card width (r/w = 8/110 ≈ 0.073)
 
 // _gyroTiltX/Y are in the -24..+24 range (mobile.js _tiltStrength = 24).
-// Divide by this to get a normalised -1..1 before applying to physics.
 var GYRO_NORM = 24;
 
-// Spring constants — rotation
-var ROT_STIFFNESS = 0.020;   // slightly less rigid
-var ROT_DAMPING   = 0.94;    // settles slowly, barely overshoots
+// ── Spring constants (spec §8) ─────────────────────────────────────────────
+var ROT_STIFFNESS = 0.032;
+var ROT_DAMPING   = 0.92;
+var POS_STIFFNESS = 0.020;
+var POS_DAMPING   = 0.90;
+var Z_STIFFNESS   = 0.030;
+var Z_DAMPING     = 0.90;
 
-// Spring constants — position drift
-var POS_STIFFNESS = 0.010;
-var POS_DAMPING   = 0.95;
+// ── Rotation limits (spec §6) ─────────────────────────────────────────────
+var MAX_PITCH = 0.17;   // rotX — forward/back lean
+var MAX_YAW   = 0.17;   // rotY — left/right turn
+var MAX_ROLL  = 0.055;  // rotZ — lean into direction
 
-// Max tilt angle in radians (~8°)
-var MAX_TILT     = 0.144;
-// Max world-unit drift from rest position
-var MAX_DRIFT_XY = 0.12;
-var MAX_DRIFT_Z  = 0.042;
+// ── Position limits (spec §7) ─────────────────────────────────────────────
+var MAX_DRIFT_X = 0.028;
+var MAX_DRIFT_Y = 0.020;
+var MAX_DRIFT_Z = 0.060;
 
 // ── Module state ──────────────────────────────────────────────────────────────
 
@@ -249,8 +252,9 @@ function _initCardParticles(obj) {
   obj.partState  = ps;
   obj.partGeo    = geo;
   obj.partPoints = pts;
-  // Add to card group so particles live in card-local space and tilt with the card
-  obj.group.add(pts);
+  // Add to rotGroup so particles tilt/rotate with the card geometry
+  var target = obj.rotGroup || obj.group;
+  target.add(pts);
 }
 
 function _spawnParticle(obj, slot, preset) {
@@ -393,12 +397,19 @@ function _tickCardParticles(obj, dt) {
 //   • Sheen: ShapeGeometry 0.002 above the face for additive glare/shimmer.
 
 function _buildCardMesh(obj) {
-  var group     = new THREE.Group();
+  // Three-level hierarchy (spec §3):
+  //   anchor    — fixed at layout position, never moves
+  //   floatGroup — tiny positional lag/drift
+  //   rotGroup   — all rotations + inertia; card geometry lives here
+  var anchor    = new THREE.Group();
+  var floatGrp  = new THREE.Group();
+  var rotGrp    = new THREE.Group();
+  anchor.add(floatGrp);
+  floatGrp.add(rotGrp);
+
   var faceShape = _makeCardShape(1, CARD_ASPECT, CORNER_R);
 
-  // ── 3D card body (ExtrudeGeometry — rounded sides + bevel) ─────────────────
-  // Single material on all groups → no materialIndex confusion.
-  // The face ShapeGeometry (below) covers the dark front cap.
+  // ── 3D card body ─────────────────────────────────────────────────────────
   var bodyMat = new THREE.MeshStandardMaterial({
     color:     0x1a1025,
     roughness: 0.55,
@@ -413,31 +424,27 @@ function _buildCardMesh(obj) {
     curveSegments:  20
   });
   var bodyMesh = new THREE.Mesh(bodyGeo, bodyMat);
-  // Center the extrusion so front cap is at +CARD_THICK/2 and back at -CARD_THICK/2
   bodyMesh.position.z = -(CARD_THICK * 0.5);
-  group.add(bodyMesh);
+  rotGrp.add(bodyMesh);
 
-  // ── Front face (ShapeGeometry, 0.006 in front of body cap — no z-fight) ────
-  // ShapeGeometry normal = +z → faces camera automatically ✓
+  // ── Front face ───────────────────────────────────────────────────────────
   var faceGeo = new THREE.ShapeGeometry(faceShape, 20);
   _remapShapeUVs(faceGeo, 1, CARD_ASPECT);
-
   var faceMat = new THREE.MeshBasicMaterial({
-    map:        obj.texture,
+    map:         obj.texture,
     transparent: true,
     toneMapped:  false,
     side:        THREE.FrontSide
   });
   var faceMesh = new THREE.Mesh(faceGeo, faceMat);
   faceMesh.position.z = CARD_THICK * 0.5 + 0.006;
-  group.add(faceMesh);
+  rotGrp.add(faceMesh);
 
-  // ── Sheen overlay (additive glare + shimmer) ────────────────────────────────
+  // ── Sheen overlay (additive glare / shimmer) ─────────────────────────────
   var sheenGeo = new THREE.ShapeGeometry(faceShape, 20);
   _remapShapeUVs(sheenGeo, 1, CARD_ASPECT);
-
   var sheenMat = new THREE.MeshBasicMaterial({
-    map:        obj.sheenTex,
+    map:         obj.sheenTex,
     transparent: true,
     opacity:     0.18,
     blending:    THREE.AdditiveBlending,
@@ -447,14 +454,16 @@ function _buildCardMesh(obj) {
   });
   var sheenMesh = new THREE.Mesh(sheenGeo, sheenMat);
   sheenMesh.position.z = CARD_THICK * 0.5 + 0.008;
-  group.add(sheenMesh);
+  rotGrp.add(sheenMesh);
 
-  obj.group     = group;
-  obj.bodyMesh  = bodyMesh;
-  obj.faceMesh  = faceMesh;
-  obj.faceMat   = faceMat;
-  obj.sheenMesh = sheenMesh;
-  obj.sheenMat  = sheenMat;
+  obj.group      = anchor;
+  obj.floatGroup = floatGrp;
+  obj.rotGroup   = rotGrp;
+  obj.bodyMesh   = bodyMesh;
+  obj.faceMesh   = faceMesh;
+  obj.faceMat    = faceMat;
+  obj.sheenMesh  = sheenMesh;
+  obj.sheenMat   = sheenMat;
 }
 
 // ── Texture capture ───────────────────────────────────────────────────────────
@@ -693,30 +702,45 @@ function _layoutCards() {
 
 // ── Spring physics ────────────────────────────────────────────────────────────
 
-function _tickPhysics(obj, dt) {
+// dg = delta gamma (left/right rotation per event) → drives yaw   (rotY)
+// db = delta beta  (forward/back tilt per event)   → drives pitch (rotX)
+// ax, ay = device acceleration from devicemotion
+function _tickPhysics(obj, dt, dg, db, ax, ay) {
   var dtS = Math.min(dt, 50) / 1000;
 
-  // Normalise from the -24..+24 range mobile.js produces → -1..+1
+  // ── Rotation targets ────────────────────────────────────────────────────
+  // mobile.js drives _gyroTiltX/Y from both mouse (absolute) and real gyro
+  // (delta-accumulated + spring), so reading here works on desktop and mobile.
+  // tiltX = left/right (gamma) → yaw (rotY)
+  // tiltY = forward/back (beta) → pitch (rotX)
   var tiltX = Math.max(-1, Math.min(1, (window._gyroTiltX || 0) / GYRO_NORM));
   var tiltY = Math.max(-1, Math.min(1, (window._gyroTiltY || 0) / GYRO_NORM));
+  obj.targetRotX = tiltY * MAX_PITCH;
+  obj.targetRotY = tiltX * MAX_YAW;
 
-  // Idle breathing — fades gently when tilted
+  // Z roll: slight lean into horizontal tilt direction
+  var targetRotZ = obj.targetRotY * -0.32;
+  targetRotZ = Math.max(-MAX_ROLL, Math.min(MAX_ROLL, targetRotZ));
+
+  // ── Acceleration impulse (spec §5) ──────────────────────────────────────
+  // Sharp phone movements add a direct velocity kick on top of the spring.
+  if (Math.abs(ax) + Math.abs(ay) > 0.8) {
+    obj.velX += -ay * 0.003;
+    obj.velY +=  ax * 0.003;
+    obj.velPosZ -= (Math.abs(ax) + Math.abs(ay)) * 0.0006;
+  }
+
+  // ── 3-axis breathing — fades when card is actively tilted ───────────────
   obj.breathT += dtS;
-  var breathMag = Math.max(0, 1 - (Math.abs(tiltX) + Math.abs(tiltY)) * 1.5);
-  var breathX = Math.sin(obj.breathT * 0.38 + obj._breathPhase)        * 0.006 * breathMag;
-  var breathY = Math.cos(obj.breathT * 0.29 + obj._breathPhase * 1.3)  * 0.004 * breathMag;
+  var breathMag = Math.max(0, 1 - (Math.abs(obj.rotX) + Math.abs(obj.rotY)) * 3.5);
+  var breathX = Math.sin(obj.breathT * 0.38 + obj._breathPhase)       * 0.006 * breathMag;
+  var breathY = Math.cos(obj.breathT * 0.29 + obj._breathPhase * 1.3) * 0.004 * breathMag;
+  var breathZ = Math.sin(obj.breathT * 0.51 + obj._breathPhase * 0.7) * 0.003 * breathMag;
 
   // ── Rotation spring ──────────────────────────────────────────────────────
-  // tiltX = left/right lean (gamma) → rotY (yaw, card turns left/right)
-  // tiltY = forward/back lean (beta) → rotX (pitch, card tips up/down)
-  var targetRotX = tiltY * MAX_TILT + breathX;
-  var targetRotY = tiltX * MAX_TILT + breathY;
-  // Z roll: leans slightly into the horizontal direction
-  var targetRotZ = tiltX * -0.03;
-
-  obj.velX += (targetRotX - obj.rotX) * ROT_STIFFNESS;
-  obj.velY += (targetRotY - obj.rotY) * ROT_STIFFNESS;
-  obj.velZ += (targetRotZ - obj.rotZ) * (ROT_STIFFNESS * 0.4);
+  obj.velX += (obj.targetRotX - obj.rotX) * ROT_STIFFNESS;
+  obj.velY += (obj.targetRotY - obj.rotY) * ROT_STIFFNESS;
+  obj.velZ += (targetRotZ     - obj.rotZ) * (ROT_STIFFNESS * 0.4);
   obj.velX *= ROT_DAMPING;
   obj.velY *= ROT_DAMPING;
   obj.velZ *= ROT_DAMPING;
@@ -724,31 +748,41 @@ function _tickPhysics(obj, dt) {
   obj.rotY += obj.velY;
   obj.rotZ += obj.velZ;
 
-  // ── Position drift — floats gently, springs back to rest ─────────────────
-  // left/right lean → X drift;  forward/back lean → Y drift
-  var targetPX = obj.targetX + tiltX * MAX_DRIFT_XY;
-  var targetPY = obj.targetY - tiltY * MAX_DRIFT_XY * 0.75;
-  // Tilt magnitude gives a tiny Z pop toward camera
-  var tiltMag  = Math.sqrt(tiltX * tiltX + tiltY * tiltY);
-  var targetPZ = tiltMag * MAX_DRIFT_Z;
+  // ── Position derived from rotation (spec §6) ─────────────────────────────
+  // Float offset is a consequence of lean — physically feels like a pivot.
+  var targetPX = -obj.rotY * 0.16;
+  var targetPY =  obj.rotX * 0.12;
+  // Z: tilted card floats slightly toward camera
+  var targetPZ = (Math.abs(obj.rotX) + Math.abs(obj.rotY)) * MAX_DRIFT_Z * 0.5;
+  targetPX = Math.max(-MAX_DRIFT_X, Math.min(MAX_DRIFT_X, targetPX));
+  targetPY = Math.max(-MAX_DRIFT_Y, Math.min(MAX_DRIFT_Y, targetPY));
+  targetPZ = Math.max(0, Math.min(MAX_DRIFT_Z, targetPZ));
 
+  // ── XY position spring ───────────────────────────────────────────────────
   obj.velPosX += (targetPX - obj.posX) * POS_STIFFNESS;
   obj.velPosY += (targetPY - obj.posY) * POS_STIFFNESS;
-  obj.velPosZ += (targetPZ - obj.posZ) * (POS_STIFFNESS * 0.6);
   obj.velPosX *= POS_DAMPING;
   obj.velPosY *= POS_DAMPING;
-  obj.velPosZ *= POS_DAMPING;
   obj.posX += obj.velPosX;
   obj.posY += obj.velPosY;
+
+  // ── Separate Z spring (spec §7) ─────────────────────────────────────────
+  obj.velPosZ += (targetPZ - obj.posZ) * Z_STIFFNESS;
+  obj.velPosZ *= Z_DAMPING;
   obj.posZ += obj.velPosZ;
 
-  if (obj.group) {
-    obj.group.rotation.x = -obj.rotX;
-    obj.group.rotation.y =  obj.rotY;
-    obj.group.rotation.z =  obj.rotZ;
-    obj.group.position.x =  obj.posX;
-    obj.group.position.y =  obj.posY;
-    obj.group.position.z =  obj.posZ;
+  // ── Apply transforms ─────────────────────────────────────────────────────
+  // rotGroup: all rotations + breathing angle offsets
+  // floatGroup: positional drift + Z breathing offset
+  if (obj.rotGroup) {
+    obj.rotGroup.rotation.x = -obj.rotX + breathX;
+    obj.rotGroup.rotation.y =  obj.rotY + breathY;
+    obj.rotGroup.rotation.z =  obj.rotZ;
+  }
+  if (obj.floatGroup) {
+    obj.floatGroup.position.x = obj.posX;
+    obj.floatGroup.position.y = obj.posY + breathZ;
+    obj.floatGroup.position.z = obj.posZ;
   }
 }
 
@@ -806,9 +840,18 @@ function _loop(now) {
 
   _syncKeyLight();
 
+  // Consume gyro deltas once per frame — read before the card loop, zero after.
+  // This ensures each delta from mobile.js is applied exactly once across all cards.
+  var _dg = window._gyroDeltaGamma || 0;
+  var _db = window._gyroDeltaBeta  || 0;
+  var _ax = window._gyroAccelX     || 0;
+  var _ay = window._gyroAccelY     || 0;
+  window._gyroDeltaGamma = 0;
+  window._gyroDeltaBeta  = 0;
+
   for (var i = 0; i < _cardObjs.length; i++) {
     var obj = _cardObjs[i];
-    _tickPhysics(obj, dt);
+    _tickPhysics(obj, dt, _dg, _db, _ax, _ay);
     _captureCardTexture(obj, now);
     _captureSheen(obj, now);
     _tickCardParticles(obj, dt);
@@ -819,18 +862,20 @@ function _loop(now) {
   // Export projected screen positions so the 2D particle/FX system can
   // follow the 3D cards. Also export top/bottom NDC so app.js can
   // compute each card's on-screen size for surface FX scaling.
+  // Use rotGroup.matrixWorld — card geometry lives there in the hierarchy.
   var _positions = [];
   for (var pi = 0; pi < _cardObjs.length; pi++) {
+    var _mw = (_cardObjs[pi].rotGroup || _cardObjs[pi].group).matrixWorld;
     var _v = new THREE.Vector3();
-    _v.setFromMatrixPosition(_cardObjs[pi].group.matrixWorld);
+    _v.setFromMatrixPosition(_mw);
     _v.project(_camera);
 
     var _vTop = new THREE.Vector3(0, CARD_ASPECT / 2, 0);
-    _vTop.applyMatrix4(_cardObjs[pi].group.matrixWorld);
+    _vTop.applyMatrix4(_mw);
     _vTop.project(_camera);
 
     var _vBot = new THREE.Vector3(0, -CARD_ASPECT / 2, 0);
-    _vBot.applyMatrix4(_cardObjs[pi].group.matrixWorld);
+    _vBot.applyMatrix4(_mw);
     _vBot.project(_camera);
 
     _positions.push({
@@ -891,17 +936,20 @@ export function enterShowcase3D() {
       sheenCtx:     sheenCtx,
       texture:      texture,
       sheenTex:     sheenTex,
-      group:        null,
+      group:        null,   // anchor — fixed at layout position
+      floatGroup:   null,   // positional drift layer
+      rotGroup:     null,   // rotation layer — geometry lives here
       bodyMesh:     null,
       faceMat:      null,
       sheenMesh:    null,
       sheenMat:     null,
       rotX: 0, rotY: 0, rotZ: 0,
       velX: 0, velY: 0, velZ: 0,
+      targetRotX: 0, targetRotY: 0,   // per-card rotation spring targets
       posX: 0, posY: 0, posZ: 0,
       velPosX: 0, velPosY: 0, velPosZ: 0,
       breathT: i * 0.8, _breathPhase: i * 1.3,
-      targetX: 0, targetY: 0,
+      targetX: 0, targetY: 0,   // layout anchor position (world units)
       partState:  null,
       partGeo:    null,
       partPoints: null
@@ -917,15 +965,14 @@ export function enterShowcase3D() {
 
   _layoutCards();
 
-  // Seed position state from layout so physics starts at rest
+  // Seed transforms from layout so physics starts at rest.
+  // anchor (group) is fixed at layout position; floatGroup starts at zero.
   for (var j = 0; j < _cardObjs.length; j++) {
     var o = _cardObjs[j];
-    o.posX = o.targetX;
-    o.posY = o.targetY;
-    o.posZ = 0;
-    if (o.group) {
-      o.group.position.set(o.posX, o.posY, o.posZ);
-    }
+    o.posX = 0; o.posY = 0; o.posZ = 0;
+    o.targetRotX = 0; o.targetRotY = 0;
+    if (o.group)      o.group.position.set(o.targetX, o.targetY, 0);
+    if (o.floatGroup) o.floatGroup.position.set(0, 0, 0);
   }
 
   window._showcase3DActive = true;
@@ -954,19 +1001,36 @@ function _onTapEnd(e) {
   // Only treat as tap if pointer barely moved (not a drag/scroll)
   if (Math.sqrt(dx * dx + dy * dy) > 12) return;
 
-  // Direction of kick: away from tap position relative to screen center
-  var nx = (e.clientX / window.innerWidth  - 0.5) * 2;
-  var ny = (e.clientY / window.innerHeight - 0.5) * 2;
+  // Tap position in NDC (-1..1 on both axes, Y up)
+  var tapX =  (e.clientX / window.innerWidth)  * 2 - 1;
+  var tapY = -(e.clientY / window.innerHeight) * 2 + 1;
 
   for (var i = 0; i < _cardObjs.length; i++) {
     var obj = _cardObjs[i];
-    // Rotation impulse — spins the card briefly
-    obj.velY += nx * 0.144;
-    obj.velX += -ny * 0.104;
-    obj.velZ += nx * 0.048;
-    // Position impulse — card bounces away then springs back
-    obj.velPosX += nx * 0.096;
-    obj.velPosY += -ny * 0.072;
+
+    // Card-relative direction: tap offset from this card's projected center
+    var cardX = 0, cardY = 0;
+    if (window._showcase3DCardPositions) {
+      for (var j = 0; j < window._showcase3DCardPositions.length; j++) {
+        if (window._showcase3DCardPositions[j].card === obj.card) {
+          cardX = window._showcase3DCardPositions[j].ndcX;
+          cardY = window._showcase3DCardPositions[j].ndcY;
+          break;
+        }
+      }
+    }
+    var rx = tapX - cardX;
+    var ry = tapY - cardY;
+    var len = Math.sqrt(rx * rx + ry * ry) || 1;
+    rx /= len; ry /= len;
+
+    // Rotation impulse — card rotates as if pushed at the tap point
+    obj.velY += rx  * 0.144;
+    obj.velX += -ry * 0.104;
+    obj.velZ += rx  * 0.048;
+    // Position impulse — card moves away from tap, springs back
+    obj.velPosX -= rx  * 0.096;
+    obj.velPosY -= ry  * 0.072;
     obj.velPosZ -= 0.08;   // pushes away from camera
   }
 }
