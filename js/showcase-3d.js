@@ -29,18 +29,18 @@ var CORNER_R    = 0.065;  // corner radius relative to card width (r/w = 8/110 �
 var GYRO_NORM = 24;
 
 // Spring constants — rotation
-var ROT_STIFFNESS = 0.016;   // very sluggish — heavy slab
+var ROT_STIFFNESS = 0.020;   // slightly less rigid
 var ROT_DAMPING   = 0.94;    // settles slowly, barely overshoots
 
 // Spring constants — position drift
 var POS_STIFFNESS = 0.010;
 var POS_DAMPING   = 0.95;
 
-// Max tilt angle in radians (~7°) — subtle
-var MAX_TILT     = 0.12;
+// Max tilt angle in radians (~8°)
+var MAX_TILT     = 0.144;
 // Max world-unit drift from rest position
-var MAX_DRIFT_XY = 0.10;
-var MAX_DRIFT_Z  = 0.035;
+var MAX_DRIFT_XY = 0.12;
+var MAX_DRIFT_Z  = 0.042;
 
 // ── Module state ──────────────────────────────────────────────────────────────
 
@@ -422,11 +422,10 @@ function _buildCardMesh(obj) {
   var faceGeo = new THREE.ShapeGeometry(faceShape, 20);
   _remapShapeUVs(faceGeo, 1, CARD_ASPECT);
 
-  // MeshBasicMaterial — ignores scene lighting entirely so the card texture
-  // renders at full vibrancy. drawCard already bakes shading/FX into the texture.
   var faceMat = new THREE.MeshBasicMaterial({
-    map:         obj.texture,
+    map:        obj.texture,
     transparent: true,
+    toneMapped:  false,
     side:        THREE.FrontSide
   });
   var faceMesh = new THREE.Mesh(faceGeo, faceMat);
@@ -438,11 +437,12 @@ function _buildCardMesh(obj) {
   _remapShapeUVs(sheenGeo, 1, CARD_ASPECT);
 
   var sheenMat = new THREE.MeshBasicMaterial({
-    map:         obj.sheenTex,
+    map:        obj.sheenTex,
     transparent: true,
-    opacity:     1.0,
+    opacity:     0.18,
     blending:    THREE.AdditiveBlending,
     depthWrite:  false,
+    toneMapped:  false,
     side:        THREE.FrontSide
   });
   var sheenMesh = new THREE.Mesh(sheenGeo, sheenMat);
@@ -606,7 +606,7 @@ function _setupScene(W, H) {
   _camera.position.z = 3.8;
 
   // Ambient at 0.60 — key light adds brightness when global light is on.
-  _ambientLight = new THREE.AmbientLight(0xffffff, 0.60);
+  _ambientLight = new THREE.AmbientLight(0xffffff, 0.40);
   _scene.add(_ambientLight);
 
   // Key light — driven by st.globalLight (color + intensity), updated every frame.
@@ -616,7 +616,7 @@ function _setupScene(W, H) {
   _scene.add(_keyLight);
 
   // Subtle cool rim from lower-left — gives card edge some dimensionality
-  var fill = new THREE.DirectionalLight(0xb8c8ff, 0.18);
+  var fill = new THREE.DirectionalLight(0xb8c8ff, 0.10);
   fill.position.set(-1.5, -0.8, 2);
   _scene.add(fill);
 }
@@ -630,7 +630,9 @@ function _setupRenderer(W, H) {
   _renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
   _renderer.setSize(W, H);
   _renderer.setClearColor(0x000000, 0);
-  _renderer.shadowMap.enabled = false;
+  _renderer.shadowMap.enabled   = false;
+  _renderer.outputColorSpace    = THREE.SRGBColorSpace;
+  _renderer.toneMapping         = THREE.NoToneMapping;
 
   _overlayEl = _renderer.domElement;
   _overlayEl.style.position    = 'absolute';
@@ -873,10 +875,13 @@ export function enterShowcase3D() {
 
     var texture  = new THREE.CanvasTexture(capCanvas);
     var sheenTex = new THREE.CanvasTexture(sheenCanvas);
-    texture.minFilter  = THREE.LinearFilter;
-    texture.magFilter  = THREE.LinearFilter;
-    sheenTex.minFilter = THREE.LinearFilter;
-    sheenTex.magFilter = THREE.LinearFilter;
+    texture.colorSpace  = THREE.SRGBColorSpace;
+    texture.minFilter   = THREE.LinearFilter;
+    texture.magFilter   = THREE.LinearFilter;
+    sheenTex.minFilter  = THREE.LinearFilter;
+    sheenTex.magFilter  = THREE.LinearFilter;
+    // Anisotropy set after renderer is created — applied in enterShowcase3D
+    // where _renderer is available.
 
     var obj = {
       card:         card,
@@ -904,6 +909,8 @@ export function enterShowcase3D() {
 
     _buildCardMesh(obj);
     _initCardParticles(obj);
+    // Apply max anisotropy now that _renderer exists
+    obj.texture.anisotropy = _renderer.capabilities.getMaxAnisotropy();
     _cardObjs.push(obj);
     _scene.add(obj.group);
   }
@@ -954,13 +961,13 @@ function _onTapEnd(e) {
   for (var i = 0; i < _cardObjs.length; i++) {
     var obj = _cardObjs[i];
     // Rotation impulse — spins the card briefly
-    obj.velY += nx * 0.18;
-    obj.velX += -ny * 0.13;
-    obj.velZ += nx * 0.06;
+    obj.velY += nx * 0.144;
+    obj.velX += -ny * 0.104;
+    obj.velZ += nx * 0.048;
     // Position impulse — card bounces away then springs back
-    obj.velPosX += nx * 0.12;
-    obj.velPosY += -ny * 0.09;
-    obj.velPosZ -= 0.10;   // pushes away from camera
+    obj.velPosX += nx * 0.096;
+    obj.velPosY += -ny * 0.072;
+    obj.velPosZ -= 0.08;   // pushes away from camera
   }
 }
 
