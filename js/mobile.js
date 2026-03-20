@@ -878,17 +878,21 @@ export function initMobile() {
       _prevRawB = _rawB;
 
       // ── Two-phase calibration ─────────────────────────────────────────────
-      // Phase 1 — first 50 events (~1 s at 50 Hz): fast alpha so the baseline
-      //   chases wherever the phone settles during showcase entry.  The relative
-      //   tilt (raw − cal) shrinks to 0 organically as cal converges, so the
-      //   card smoothly centres itself without any jump.
-      // Phase 2 — after 1 s: stillness-based.  Only recalibrates after the
-      //   device has been near-still for ≥1.5 s so intentional tilts aren't
-      //   silently swallowed.
+      // Phase 1 — first 60 events (~1.2 s at 50 Hz): alpha ramps linearly
+      //   from ≈1 down to 0.  When alpha≈1 the baseline tracks raw perfectly
+      //   so relative tilt ≈ 0 and the card stays neutral.  As alpha falls the
+      //   card gradually becomes responsive.  This handles two hard cases:
+      //     • Sensor lag on iOS (beta starts near 0, ramps to real value) —
+      //       alpha≈1 keeps cal glued to raw so rel stays near 0 the whole time.
+      //     • Phone moving during showcase entry — same: cal chases raw, card
+      //       barely reacts, then settles once the phone is still.
+      // Phase 2 — after 1.2 s: stillness-based.  Only recalibrates after the
+      //   device has been near-still for ≥1.5 s so intentional tilts are never
+      //   silently absorbed.
       _calFrames++;
       var calAlpha;
-      if (_calFrames <= 50) {
-        calAlpha = 0.15;
+      if (_calFrames <= 60) {
+        calAlpha = Math.max(0, 1.0 - _calFrames / 60);
       } else {
         var nearStill = Math.abs(dg) < 0.8 && Math.abs(db) < 0.8;
         if (nearStill) {
