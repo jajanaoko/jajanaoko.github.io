@@ -700,10 +700,19 @@ export function initMobile() {
       _rafId = null;
       if (!window._gyroActive) return;
 
-      // ── Target decay — drifts back to neutral when phone/mouse is still ───
+      // ── Target decay ─────────────────────────────────────────────────────
       if (!_dragActive) {
-        _targetX *= 0.96;
-        _targetY *= 0.96;
+        if (_sensorActive) {
+          // Sensor path: impulse channel decays; pose channel is re-derived each frame
+          _impulseX *= 0.94;
+          _impulseY *= 0.94;
+          _targetX = Math.max(-1, Math.min(1, _poseX * 0.7 + _impulseX * 0.3));
+          _targetY = Math.max(-1, Math.min(1, _poseY * 0.7 + _impulseY * 0.3));
+        } else {
+          // Mouse / touch-drag: simple decay back to center
+          _targetX *= 0.96;
+          _targetY *= 0.96;
+        }
       }
 
       // ── Spring physics (X / Y) ──────────────────────────────────────────
@@ -823,13 +832,23 @@ export function initMobile() {
       );
     }
 
-    // ── Real sensor ───────────────────────────────────────────────────────
-    // Pure delta approach: card is always neutral when phone is still.
-    // Only angular velocity (change per event) moves the card.
-    // Target decays to 0 in tick() so card returns to center when still.
+    // ── Real sensor — hybrid model ────────────────────────────────────────
+    // Pose channel:    relative absolute orientation (rawG - neutralG) → slow lean
+    // Impulse channel: delta-based angular velocity → lively kick, decays in tick()
+    // Neutral baseline: captured on activate() + slow adaptive update when still
     var _sensorZeroCount = 0;
     var _rawG = 0, _rawB = 0, _prevRawG = 0, _prevRawB = 0;
     var _rawInitDone = false;
+    // Hybrid model state
+    var _sensorActive = false;
+    var _poseX = 0, _poseY = 0;       // pose channel (normalized -1..1)
+    var _impulseX = 0, _impulseY = 0; // impulse channel (decays in tick)
+    var _neutralG = 0, _neutralB = 0; // dynamic neutral baseline
+    var _stillCount = 0;
+    var _settleBuffer = [];
+    var _settleTimer = null;
+    // High-pass accelerometer (gravity removed)
+    var _accelLPX = 0, _accelLPY = 0;
 
     function onDeviceOrientation(e) {
       var g = e.gamma, b = e.beta;
@@ -841,35 +860,80 @@ export function initMobile() {
       }
       _sensorZeroCount = 0;
 
-      // First event: seed previous values, produce no delta
+      // First event: seed raw state and start 300 ms settle window
       if (!_rawInitDone) {
         _rawG = g; _rawB = b;
         _prevRawG = g; _prevRawB = b;
         _rawInitDone = true;
+        _settleBuffer = [];
+        if (_settleTimer) clearTimeout(_settleTimer);
+        _settleTimer = setTimeout(function() {
+          _settleTimer = null;
+          if (_settleBuffer.length >= 5) {
+            var sg = 0, sb = 0;
+            for (var i = 0; i < _settleBuffer.length; i++) { sg += _settleBuffer[i][0]; sb += _settleBuffer[i][1]; }
+            _neutralG = sg / _settleBuffer.length;
+            _neutralB = sb / _settleBuffer.length;
+          } else {
+            _neutralG = _rawG; _neutralB = _rawB;
+          }
+          _sensorActive = true;
+          scheduleTick();
+        }, 300);
         return;
       }
 
-      // Low-pass filter
+      // Collect settle buffer during the first 300 ms
+      if (!_sensorActive) { _settleBuffer.push([g, b]); }
+
+      // Low-pass filter raw values
       _rawG += (g - _rawG) * 0.25;
       _rawB += (b - _rawB) * 0.25;
 
-      // Angular velocity clamped to ±5° per event
+      // Angular velocity, clamped to ±5° per event
       var dg = Math.max(-5, Math.min(5, _rawG - _prevRawG));
       var db = Math.max(-5, Math.min(5, _rawB - _prevRawB));
       _prevRawG = _rawG;
       _prevRawB = _rawB;
 
-      // Dead zone — ignore sensor noise
-      if (Math.abs(dg) < 0.2 && Math.abs(db) < 0.2) return;
+      if (!_sensorActive) return; // still in settle window
 
       // Export deltas for 3D physics impulse
-      window._gyroDeltaGamma = dg;
-      window._gyroDeltaBeta  = db;
+      if (Math.abs(dg) > 0.2 || Math.abs(db) > 0.2) {
+        window._gyroDeltaGamma = dg;
+        window._gyroDeltaBeta  = db;
+      }
 
-      // Nudge target by angular velocity; decays to 0 in tick() when still
-      var nx = Math.max(-1, Math.min(1, _targetX + dg / 55));
-      var ny = Math.max(-1, Math.min(1, _targetY - db / 45));
-      setTarget(nx, ny, null);
+      // Stillness detection — phone is still if angular motion AND linear accel are low
+      var motionMag = Math.abs(dg) + Math.abs(db);
+      var isStill = motionMag < 0.5 && window._gyroAccelMag < 1.5;
+      if (isStill) {
+        _stillCount++;
+        if (_stillCount > 17) { // ~340 ms of stillness at 50 Hz
+          // Slowly blend neutral toward current reading
+          _neutralG += (_rawG - _neutralG) * 0.02;
+          _neutralB += (_rawB - _neutralB) * 0.02;
+        }
+      } else {
+        _stillCount = 0;
+      }
+
+      // Pose channel: card lean = current hold minus neutral hold
+      var relG = _rawG - _neutralG;
+      var relB = _rawB - _neutralB;
+      // Deadband — suppresses tremor and micro-noise
+      if (Math.abs(relG) < 1.2) relG = 0;
+      if (Math.abs(relB) < 1.5) relB = 0;
+      _poseX = Math.max(-1, Math.min(1,  relG / 30));
+      _poseY = Math.max(-1, Math.min(1, -relB / 40)); // negative: forward tilt → card up
+
+      // Impulse channel: lively kick from angular velocity
+      if (Math.abs(dg) > 0.2 || Math.abs(db) > 0.2) {
+        _impulseX = Math.max(-0.4, Math.min(0.4, _impulseX + dg / 90));
+        _impulseY = Math.max(-0.4, Math.min(0.4, _impulseY - db / 90));
+      }
+
+      scheduleTick();
     }
 
     function onDeviceMotion(e) {
@@ -877,9 +941,15 @@ export function initMobile() {
       if (!acc) return;
       var ax = acc.x || 0;
       var ay = acc.y || 0;
-      window._gyroAccelX   = ax;
-      window._gyroAccelY   = ay;
-      window._gyroAccelMag = Math.sqrt(ax * ax + ay * ay);
+      var az = (acc.z || 0);
+      // Low-pass estimates gravity component
+      _accelLPX += (ax - _accelLPX) * 0.08;
+      _accelLPY += (ay - _accelLPY) * 0.08;
+      // High-pass = user-generated force only
+      window._gyroAccelX   = ax - _accelLPX;
+      window._gyroAccelY   = ay - _accelLPY;
+      // Raw magnitude for stillness detection (gravity stays in)
+      window._gyroAccelMag = Math.sqrt(ax * ax + ay * ay + az * az);
     }
 
     // ── Lifecycle ─────────────────────────────────────────────────────────
@@ -890,6 +960,14 @@ export function initMobile() {
       _velX = 0; _velY = 0; _velZ = 0; _wobbleT = 0;
       _sensorZeroCount = 0;
       _rawInitDone = false;
+      _sensorActive = false;
+      _poseX = 0; _poseY = 0;
+      _impulseX = 0; _impulseY = 0;
+      _neutralG = 0; _neutralB = 0;
+      _stillCount = 0;
+      _settleBuffer = [];
+      if (_settleTimer) { clearTimeout(_settleTimer); _settleTimer = null; }
+      _accelLPX = 0; _accelLPY = 0;
       window._gyroActive = true;
       if (st.canvasWrap) st.canvasWrap.dataset.gyro = '1';
       // Attach all inputs — whichever provides data wins
@@ -915,6 +993,11 @@ export function initMobile() {
       window._gyroAccelX   = 0;
       window._gyroAccelY   = 0;
       window._gyroAccelMag = 0;
+      _sensorActive = false;
+      _poseX = 0; _poseY = 0;
+      _impulseX = 0; _impulseY = 0;
+      _stillCount = 0;
+      if (_settleTimer) { clearTimeout(_settleTimer); _settleTimer = null; }
       _targetX = 0; _targetY = 0; _targetZ = _baseDepth;
       _smoothX = 0; _smoothY = 0; _smoothZ = _baseDepth;
       _velX = 0; _velY = 0; _velZ = 0;
