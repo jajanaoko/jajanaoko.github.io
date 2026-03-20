@@ -56,6 +56,7 @@ var _overlayEl   = null;
 var _particleEl  = null;
 var _particleCtx = null;
 var _grainTex   = null;   // shared procedural roughness texture (created once)
+var _backTex    = null;   // shared card-back texture (created once)
 var _keyLight     = null;   // directional light synced to st.globalLight each frame
 var _ambientLight = null;   // ambient light — tinted toward global light colour
 var _partMat      = null;   // shared ShaderMaterial for 3D spell particles (all cards)
@@ -114,6 +115,97 @@ function _getGrainTexture() {
   _grainTex.minFilter = THREE.LinearMipmapLinearFilter;
   _grainTex.generateMipmaps = true;
   return _grainTex;
+}
+
+// ── Card back texture ─────────────────────────────────────────────────────────
+// Dark premium card back with diamond grid and central star glyph.
+// Created once and shared across all cards in a session.
+
+function _getCardBackTexture() {
+  if (_backTex) return _backTex;
+
+  var W = TEX_W, H = TEX_H;
+  var canvas = document.createElement('canvas');
+  canvas.width = W; canvas.height = H;
+  var ctx = canvas.getContext('2d');
+
+  // Deep background
+  ctx.fillStyle = '#07040f';
+  ctx.fillRect(0, 0, W, H);
+
+  // Soft radial glow from center
+  var grd = ctx.createRadialGradient(W/2, H/2, 0, W/2, H/2, Math.max(W,H) * 0.65);
+  grd.addColorStop(0,   'rgba(90,50,160,0.22)');
+  grd.addColorStop(0.5, 'rgba(40,20,80, 0.10)');
+  grd.addColorStop(1,   'rgba(0,0,0,0)');
+  ctx.fillStyle = grd;
+  ctx.fillRect(0, 0, W, H);
+
+  // Diamond grid pattern
+  var gs = Math.round(W / 7);
+  ctx.strokeStyle = 'rgba(150,100,255,0.09)';
+  ctx.lineWidth = 1.5;
+  for (var gy = -gs; gy < H + gs; gy += gs) {
+    for (var gx = -gs; gx < W + gs; gx += gs) {
+      ctx.beginPath();
+      ctx.moveTo(gx + gs/2, gy);
+      ctx.lineTo(gx + gs,   gy + gs/2);
+      ctx.lineTo(gx + gs/2, gy + gs);
+      ctx.lineTo(gx,        gy + gs/2);
+      ctx.closePath();
+      ctx.stroke();
+    }
+  }
+
+  // Outer border
+  var pad = 18, r = CORNER_R * W;
+  ctx.strokeStyle = 'rgba(160,120,255,0.38)';
+  ctx.lineWidth = 4;
+  ctx.beginPath();
+  ctx.moveTo(pad+r, pad); ctx.lineTo(W-pad-r, pad);
+  ctx.quadraticCurveTo(W-pad, pad,   W-pad, pad+r);
+  ctx.lineTo(W-pad, H-pad-r);
+  ctx.quadraticCurveTo(W-pad, H-pad, W-pad-r, H-pad);
+  ctx.lineTo(pad+r, H-pad);
+  ctx.quadraticCurveTo(pad, H-pad,   pad, H-pad-r);
+  ctx.lineTo(pad, pad+r);
+  ctx.quadraticCurveTo(pad, pad,     pad+r, pad);
+  ctx.closePath(); ctx.stroke();
+
+  // Inner border
+  var p2 = 32, r2 = r * 0.75;
+  ctx.strokeStyle = 'rgba(160,120,255,0.16)';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(p2+r2, p2); ctx.lineTo(W-p2-r2, p2);
+  ctx.quadraticCurveTo(W-p2, p2,   W-p2, p2+r2);
+  ctx.lineTo(W-p2, H-p2-r2);
+  ctx.quadraticCurveTo(W-p2, H-p2, W-p2-r2, H-p2);
+  ctx.lineTo(p2+r2, H-p2);
+  ctx.quadraticCurveTo(p2, H-p2,   p2, H-p2-r2);
+  ctx.lineTo(p2, p2+r2);
+  ctx.quadraticCurveTo(p2, p2,     p2+r2, p2);
+  ctx.closePath(); ctx.stroke();
+
+  // 8-pointed star glyph at center
+  var cx = W/2, cy = H/2;
+  var oR = W * 0.088, iR = W * 0.036;
+  ctx.fillStyle = 'rgba(190,150,255,0.30)';
+  ctx.beginPath();
+  for (var pt = 0; pt < 16; pt++) {
+    var ang = (pt * Math.PI / 8) - Math.PI / 2;
+    var rad = (pt % 2 === 0) ? oR : iR;
+    var px  = cx + Math.cos(ang) * rad;
+    var py  = cy + Math.sin(ang) * rad;
+    if (pt === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+  }
+  ctx.closePath(); ctx.fill();
+
+  _backTex = new THREE.CanvasTexture(canvas);
+  _backTex.colorSpace = THREE.SRGBColorSpace;
+  _backTex.minFilter  = THREE.LinearFilter;
+  _backTex.magFilter  = THREE.LinearFilter;
+  return _backTex;
 }
 
 // ── Rounded rect path helper ──────────────────────────────────────────────────
@@ -456,6 +548,20 @@ function _buildCardMesh(obj) {
   sheenMesh.position.z = CARD_THICK * 0.5 + 0.008;
   rotGrp.add(sheenMesh);
 
+  // ── Back face (shown when card is flipped) ───────────────────────────────
+  var backGeo = new THREE.ShapeGeometry(faceShape, 20);
+  _remapShapeUVs(backGeo, 1, CARD_ASPECT);
+  var backMat = new THREE.MeshBasicMaterial({
+    map:        _getCardBackTexture(),
+    transparent: false,
+    toneMapped:  false,
+    side:        THREE.FrontSide
+  });
+  var backMesh = new THREE.Mesh(backGeo, backMat);
+  backMesh.position.z = -(CARD_THICK * 0.5 + 0.006);
+  backMesh.rotation.y = Math.PI;  // normal faces -Z; visible when card is flipped
+  rotGrp.add(backMesh);
+
   obj.group      = anchor;
   obj.floatGroup = floatGrp;
   obj.rotGroup   = rotGrp;
@@ -464,6 +570,7 @@ function _buildCardMesh(obj) {
   obj.faceMat    = faceMat;
   obj.sheenMesh  = sheenMesh;
   obj.sheenMat   = sheenMat;
+  obj.backMesh   = backMesh;
 }
 
 // ── Texture capture ───────────────────────────────────────────────────────────
@@ -738,15 +845,39 @@ function _tickPhysics(obj, dt, dg, db, ax, ay) {
   var breathZ = Math.sin(obj.breathT * 0.51 + obj._breathPhase * 0.7) * 0.003 * breathMag;
 
   // ── Rotation spring ──────────────────────────────────────────────────────
+  // Y target includes flip offset: face-up → 0, face-down → π.
+  // The spring pulls rotY to that position, so the card settles showing
+  // whichever face is correct while still responding to tilt perturbations.
+  var flipOffset = obj.isFlipped ? Math.PI : 0;
   obj.velX += (obj.targetRotX - obj.rotX) * ROT_STIFFNESS;
-  obj.velY += (obj.targetRotY - obj.rotY) * ROT_STIFFNESS;
-  obj.velZ += (targetRotZ     - obj.rotZ) * (ROT_STIFFNESS * 0.4);
+  obj.velY += (flipOffset + obj.targetRotY - obj.rotY) * ROT_STIFFNESS;
+  obj.velZ += (targetRotZ  - obj.rotZ) * (ROT_STIFFNESS * 0.4);
   obj.velX *= ROT_DAMPING;
   obj.velY *= ROT_DAMPING;
   obj.velZ *= ROT_DAMPING;
+
+  // ── Flip detection ───────────────────────────────────────────────────────
+  // A hard enough Y-axis flick (gyro or tap) triggers a 180° flip.
+  // Threshold 0.13 rad/frame: exceeded by a full-side tap or forceful tilt,
+  // but not by normal gentle tilt (max natural velY ≈ 0.07).
+  if (obj._flipCooldown > 0) {
+    obj._flipCooldown--;
+  } else if (Math.abs(obj.velY) > 0.13) {
+    obj.isFlipped = !obj.isFlipped;
+    obj._flipCooldown = 45;   // ~0.75 s before next flip can trigger
+  }
+
   obj.rotX += obj.velX;
   obj.rotY += obj.velY;
   obj.rotZ += obj.velZ;
+
+  // ── Face / back visibility ───────────────────────────────────────────────
+  // cos(rotY) > 0 → front is facing camera; < 0 → back is facing camera.
+  // Swapping at the 90° crossing gives a physically accurate reveal.
+  var showFront = Math.cos(obj.rotY) >= 0;
+  if (obj.faceMesh)  obj.faceMesh.visible  = showFront;
+  if (obj.sheenMesh) obj.sheenMesh.visible = showFront;
+  if (obj.backMesh)  obj.backMesh.visible  = !showFront;
 
   // ── Position derived from rotation (spec §6) ─────────────────────────────
   // Float offset is a consequence of lean — physically feels like a pivot.
@@ -940,9 +1071,13 @@ export function enterShowcase3D() {
       floatGroup:   null,   // positional drift layer
       rotGroup:     null,   // rotation layer — geometry lives here
       bodyMesh:     null,
+      faceMesh:     null,
       faceMat:      null,
       sheenMesh:    null,
       sheenMat:     null,
+      backMesh:     null,
+      isFlipped:    false,  // true when card is showing back face
+      _flipCooldown: 0,     // frames until next flip can trigger
       rotX: 0, rotY: 0, rotZ: 0,
       velX: 0, velY: 0, velZ: 0,
       targetRotX: 0, targetRotY: 0,   // per-card rotation spring targets
@@ -1062,8 +1197,9 @@ export function exitShowcase3D() {
   }
   _cardObjs = [];
 
-  if (_partMat)   { _partMat.dispose(); _partMat = null; }
+  if (_partMat)   { _partMat.dispose();  _partMat  = null; }
   if (_grainTex)  { _grainTex.dispose(); _grainTex = null; }
+  if (_backTex)   { _backTex.dispose();  _backTex  = null; }
   if (_renderer)  { _renderer.dispose(); _renderer = null; }
 
   if (_overlayEl && _overlayEl.parentNode) {
