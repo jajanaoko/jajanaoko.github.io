@@ -705,10 +705,12 @@ function _tickPhysics(obj, dt) {
   var breathY = Math.cos(obj.breathT * 0.29 + obj._breathPhase * 1.3)  * 0.004 * breathMag;
 
   // ── Rotation spring ──────────────────────────────────────────────────────
-  var targetRotX = tiltX * MAX_TILT + breathX;
-  var targetRotY = tiltY * MAX_TILT + breathY;
-  // Very subtle Z roll — leans slightly into horizontal drift
-  var targetRotZ = tiltY * -0.03;
+  // tiltX = left/right lean (gamma) → rotY (yaw, card turns left/right)
+  // tiltY = forward/back lean (beta) → rotX (pitch, card tips up/down)
+  var targetRotX = tiltY * MAX_TILT + breathX;
+  var targetRotY = tiltX * MAX_TILT + breathY;
+  // Z roll: leans slightly into the horizontal direction
+  var targetRotZ = tiltX * -0.03;
 
   obj.velX += (targetRotX - obj.rotX) * ROT_STIFFNESS;
   obj.velY += (targetRotY - obj.rotY) * ROT_STIFFNESS;
@@ -721,8 +723,9 @@ function _tickPhysics(obj, dt) {
   obj.rotZ += obj.velZ;
 
   // ── Position drift — floats gently, springs back to rest ─────────────────
-  var targetPX = obj.targetX + tiltY * MAX_DRIFT_XY;
-  var targetPY = obj.targetY - tiltX * MAX_DRIFT_XY * 0.75;
+  // left/right lean → X drift;  forward/back lean → Y drift
+  var targetPX = obj.targetX + tiltX * MAX_DRIFT_XY;
+  var targetPY = obj.targetY - tiltY * MAX_DRIFT_XY * 0.75;
   // Tilt magnitude gives a tiny Z pop toward camera
   var tiltMag  = Math.sqrt(tiltX * tiltX + tiltY * tiltY);
   var targetPZ = tiltMag * MAX_DRIFT_Z;
@@ -923,6 +926,42 @@ export function enterShowcase3D() {
   _rafId = requestAnimationFrame(_loop);
 
   window.addEventListener('resize', _onResize);
+  window.addEventListener('pointerdown', _onTap);
+}
+
+// ── Tap / click impulse ───────────────────────────────────────────────────────
+// Applies a short velocity kick to all cards so they spin and bounce, then
+// spring back. Distinguishes a tap (no movement) from a drag/scroll.
+
+var _tapStartX = 0, _tapStartY = 0;
+
+function _onTap(e) {
+  _tapStartX = e.clientX;
+  _tapStartY = e.clientY;
+  window.addEventListener('pointerup', _onTapEnd, { once: true });
+}
+
+function _onTapEnd(e) {
+  var dx = e.clientX - _tapStartX;
+  var dy = e.clientY - _tapStartY;
+  // Only treat as tap if pointer barely moved (not a drag/scroll)
+  if (Math.sqrt(dx * dx + dy * dy) > 12) return;
+
+  // Direction of kick: away from tap position relative to screen center
+  var nx = (e.clientX / window.innerWidth  - 0.5) * 2;
+  var ny = (e.clientY / window.innerHeight - 0.5) * 2;
+
+  for (var i = 0; i < _cardObjs.length; i++) {
+    var obj = _cardObjs[i];
+    // Rotation impulse — spins the card briefly
+    obj.velY += nx * 0.18;
+    obj.velX += -ny * 0.13;
+    obj.velZ += nx * 0.06;
+    // Position impulse — card bounces away then springs back
+    obj.velPosX += nx * 0.12;
+    obj.velPosY += -ny * 0.09;
+    obj.velPosZ -= 0.10;   // pushes away from camera
+  }
 }
 
 export function exitShowcase3D() {
@@ -974,6 +1013,7 @@ export function exitShowcase3D() {
   _ambientLight = null;
 
   window.removeEventListener('resize', _onResize);
+  window.removeEventListener('pointerdown', _onTap);
 }
 
 function _onResize() {

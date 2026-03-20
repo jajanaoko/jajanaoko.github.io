@@ -687,10 +687,10 @@ export function initMobile() {
     var _velX = 0, _velY = 0, _velZ = 0;
     // Spring constants: stiffness controls how quickly position chases target;
     // damping < 1 allows a small natural overshoot that settles organically.
-    var _stiffness = 0.11;   // lower = slower, more elastic
-    var _dampingXY = 0.74;   // lower = more overshoot / bounce
-    var _stiffnessZ = 0.09;  // Z is tighter — depth doesn't need to bounce
-    var _dampingZ   = 0.80;
+    var _stiffness = 0.06;   // slow, heavy response
+    var _dampingXY = 0.88;   // high damping — barely overshoots
+    var _stiffnessZ = 0.07;
+    var _dampingZ   = 0.88;
 
     // Micro-wobble — slow organic drift when card is near neutral
     var _wobbleT = 0;
@@ -699,6 +699,13 @@ export function initMobile() {
     function tick() {
       _rafId = null;
       if (!window._gyroActive) return;
+
+      // ── Sensor target decay — drifts back to neutral when phone is still ──
+      // Touch drag target is set explicitly so no decay needed while dragging.
+      if (!_dragActive) {
+        _targetX *= 0.96;
+        _targetY *= 0.96;
+      }
 
       // ── Spring physics (X / Y) ──────────────────────────────────────────
       _velX += (_targetX - _smoothX) * _stiffness;
@@ -718,7 +725,7 @@ export function initMobile() {
       // tilts feel clean while a resting card feels alive.
       _wobbleT += 0.018;
       var _mag = Math.sqrt(_smoothX * _smoothX + _smoothY * _smoothY);
-      var _wStr = Math.max(0, 1 - _mag * 5.5) * 0.024;
+      var _wStr = Math.max(0, 1 - _mag * 5.5) * 0.010;
       var wX = Math.sin(_wobbleT * 0.71 + 1.30) * _wStr;
       var wY = Math.cos(_wobbleT * 0.53 + 0.83) * _wStr;
 
@@ -818,27 +825,48 @@ export function initMobile() {
     }
 
     // ── Real sensor (only fires meaningful data on HTTPS) ─────────────────
+    // Uses angular velocity (delta per frame) rather than absolute offset so
+    // the card only reacts to phone movement, not its resting orientation.
+    // Picking up from a table or holding at any angle causes no drift.
     var _sensorZeroCount = 0;
+    var _rawG = 0, _rawB = 0, _prevRawG = 0, _prevRawB = 0;
+    var _rawInitDone = false;
+
     function onDeviceOrientation(e) {
       var g = e.gamma, b = e.beta;
       if (!Number.isFinite(g) || !Number.isFinite(b)) return;
-      // Ignore all-zero bursts — Chrome on file:// returns 0,0,0
       if (g === 0 && b === 0) {
         _sensorZeroCount++;
-        if (_sensorZeroCount < 10) return; // might be genuine centre, wait
-        return; // sustained zeros = blocked sensor, ignore
+        if (_sensorZeroCount >= 10) return; // sustained zeros = blocked sensor
+        return;
       }
       _sensorZeroCount = 0;
-      // Capture baseline once we get real data
-      if (window._sensorBaseG === undefined) {
-        window._sensorBaseG = g;
-        window._sensorBaseB = b;
+
+      // First reading — seed raw state, produce no delta
+      if (!_rawInitDone) {
+        _rawG = g; _rawB = b;
+        _prevRawG = g; _prevRawB = b;
+        _rawInitDone = true;
+        return;
       }
-      var nx = Math.max(-1, Math.min(1, (g - window._sensorBaseG) / 20));
-      var ny = -Math.max(-1, Math.min(1, (b - window._sensorBaseB) / 16));
-      var mag = Math.min(1, Math.sqrt(nx * nx + ny * ny));
-      var nz = _baseDepth + mag * 0.18;
-      setTarget(nx, ny, nz);
+
+      // Low-pass filter to reduce sensor noise
+      _rawG += (g - _rawG) * 0.25;
+      _rawB += (b - _rawB) * 0.25;
+
+      // Angular velocity: change since last event, clamped to ±5°
+      var dg = Math.max(-5, Math.min(5, _rawG - _prevRawG));
+      var db = Math.max(-5, Math.min(5, _rawB - _prevRawB));
+      _prevRawG = _rawG;
+      _prevRawB = _rawB;
+
+      // Dead zone — ignore tiny sensor noise (< 0.2° change)
+      if (Math.abs(dg) < 0.2 && Math.abs(db) < 0.2) return;
+
+      // Nudge target by velocity; target decays to 0 in tick() when no input
+      var nx = Math.max(-1, Math.min(1, _targetX + dg / 55));
+      var ny = Math.max(-1, Math.min(1, _targetY - db / 45));
+      setTarget(nx, ny, null);
     }
 
     // ── Lifecycle ─────────────────────────────────────────────────────────
@@ -848,8 +876,7 @@ export function initMobile() {
       _smoothX = 0; _smoothY = 0; _smoothZ = _baseDepth;
       _velX = 0; _velY = 0; _velZ = 0; _wobbleT = 0;
       _sensorZeroCount = 0;
-      window._sensorBaseG = undefined;
-      window._sensorBaseB = undefined;
+      _rawInitDone = false;
       window._gyroActive = true;
       if (st.canvasWrap) st.canvasWrap.dataset.gyro = '1';
       // Attach all inputs — whichever provides data wins

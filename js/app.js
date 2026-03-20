@@ -8,7 +8,7 @@
 import { AppState as st, STOCK_CARDS } from './state.js';
 import { initPanelResizers, screenToWorld } from './canvas-engine.js';
 import { drawCard, drawTextObj, drawRectObj, drawCustomCard, drawResizeHandles,
-         drawGlobalLighting, drawSurfaceFX,
+         drawGlobalLighting,
          refreshSurfacePreview, refreshInspectorAssetGrid, refreshInspectorContent,
          applySurface, updateHoverPhysics } from './renderer.js';
 import { drawBgEffects, drawBgEffectsStack,
@@ -707,41 +707,12 @@ function render(t, dt) {
         tickAndDrawParticles(_c, _c.x + _ax, _c.y + _ay, _cs, _cr, t, dt);
       }
     } else {
-      // Skip 2D card draw when the Three.js 3D overlay is active in showcase mode
+      // Skip 2D card draw when the Three.js 3D overlay is active.
+      // Holo, shimmer, luster and grain are baked into the face texture each
+      // frame by _captureCardTexture, so they follow the card perfectly without
+      // any overlay. Drawing them again on the 2D canvas caused floating/lag.
       if (!window._showcase3DActive) {
         drawCard(_c, t, false);
-      } else if (window._showcase3DParticleCtx && window._showcase3DCardPositions) {
-        // Draw surface FX (holo, shimmer, luster, etc.) on the overlay canvas
-        // at the 3D card's projected screen position.
-        for (var _fxi = 0; _fxi < window._showcase3DCardPositions.length; _fxi++) {
-          var _fxp = window._showcase3DCardPositions[_fxi];
-          if (_fxp.card !== _c) continue;
-
-          // 3D card center in 2D world coords
-          var _fxSX = (_fxp.ndcX + 1) / 2 * window.innerWidth;
-          var _fxSY = (-_fxp.ndcY + 1) / 2 * window.innerHeight;
-          var _fxWP = screenToWorld(_fxSX, _fxSY);
-
-          // On-screen card height (CSS px) → 2D world scale
-          // screenH = CARD_H * cs * camZoomRef, so cs = screenH / (CARD_H * camZoomRef)
-          var _fxTopY = (-_fxp.ndcTopY + 1) / 2 * window.innerHeight;
-          var _fxBotY = (-_fxp.ndcBotY + 1) / 2 * window.innerHeight;
-          var _fxScreenH = Math.abs(_fxBotY - _fxTopY);
-          var _fxCs = _fxScreenH / (154 * (st.camZoomRef || 1));
-
-          var _fxCtx  = window._showcase3DParticleCtx;
-          var _fxXfm  = st.ctx.getTransform();
-          var _fxOrig = st.ctx;
-          _fxCtx.save();
-          _fxCtx.setTransform(_fxXfm);
-          _fxCtx.translate(_fxWP.x, _fxWP.y);
-          _fxCtx.scale(_fxCs, _fxCs);
-          st.ctx = _fxCtx;
-          drawSurfaceFX(_c, t, 110, 154, 8, { tilt: 0, elev: 1 }, false);
-          st.ctx = _fxOrig;
-          _fxCtx.restore();
-          break;
-        }
       }
       if (_c.spell && _c.spell.on && !window._showcase3DActive) {
         // In showcase mode, THREE.Points in showcase-3d.js handles particles
