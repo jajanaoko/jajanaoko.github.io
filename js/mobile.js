@@ -700,9 +700,11 @@ export function initMobile() {
       _rafId = null;
       if (!window._gyroActive) return;
 
-      // ── Sensor target decay — drifts back to neutral when phone is still ──
-      // Touch drag target is set explicitly so no decay needed while dragging.
-      if (!_dragActive) {
+      // ── Target decay — drifts back to neutral when phone/mouse is still ───
+      // Suppressed for real sensor: the calibrated relative-tilt target already
+      // returns to 0 when the phone returns to its resting angle.
+      // Kept for mouse/touch-drag: returns card to center when input stops.
+      if (!_dragActive && !_usingSensor) {
         _targetX *= 0.96;
         _targetY *= 0.96;
       }
@@ -831,6 +833,13 @@ export function initMobile() {
     var _sensorZeroCount = 0;
     var _rawG = 0, _rawB = 0, _prevRawG = 0, _prevRawB = 0;
     var _rawInitDone = false;
+    // Calibrated resting orientation — snaps to device angle on first reading,
+    // then slowly drifts to track how the user is actually holding the phone.
+    var _calGamma = 0, _calBeta = 0;
+    // True once a real sensor event has been received (vs. mouse-only desktop).
+    // Used to suppress target decay in tick() — absolute relative targeting
+    // already returns card to center when phone returns to resting position.
+    var _usingSensor = false;
 
     function onDeviceOrientation(e) {
       var g = e.gamma, b = e.beta;
@@ -842,11 +851,14 @@ export function initMobile() {
       }
       _sensorZeroCount = 0;
 
-      // First reading — seed raw state, produce no delta
+      // First reading — snap raw state AND calibration to current orientation.
+      // This means the card starts centered regardless of device angle.
       if (!_rawInitDone) {
         _rawG = g; _rawB = b;
         _prevRawG = g; _prevRawB = b;
+        _calGamma = g; _calBeta = b;
         _rawInitDone = true;
+        _usingSensor = true;
         return;
       }
 
@@ -860,17 +872,27 @@ export function initMobile() {
       _prevRawG = _rawG;
       _prevRawB = _rawB;
 
-      // Dead zone — ignore tiny sensor noise (< 0.2° change)
-      if (Math.abs(dg) < 0.2 && Math.abs(db) < 0.2) return;
+      // ── Calibration: track resting orientation when phone is near-still ──
+      // alpha = 0.008 → ~5 s to absorb a new resting angle (table vs. hand).
+      // Paused during active movement so intentional tilts are not swallowed.
+      if (Math.abs(dg) < 0.8 && Math.abs(db) < 0.8) {
+        _calGamma += (_rawG - _calGamma) * 0.008;
+        _calBeta  += (_rawB - _calBeta)  * 0.008;
+      }
 
-      // Export raw deltas for showcase-3d.js secondary impulse
-      window._gyroDeltaGamma = dg;
-      window._gyroDeltaBeta  = db;
+      // ── Relative tilt from calibrated resting position → card target ──────
+      // ±45° from rest maps to full card deflection (-1..1).
+      // This is absolute (not delta), so the card holds its position while the
+      // phone is still and returns to center when returned to resting angle.
+      var relG = Math.max(-45, Math.min(45, _rawG - _calGamma));
+      var relB = Math.max(-45, Math.min(45, _rawB - _calBeta));
+      setTarget(relG / 45, -relB / 45, null);
 
-      // Nudge target by velocity; target decays to 0 in tick() when no input
-      var nx = Math.max(-1, Math.min(1, _targetX + dg / 55));
-      var ny = Math.max(-1, Math.min(1, _targetY - db / 45));
-      setTarget(nx, ny, null);
+      // Export deltas for showcase-3d.js acceleration impulse — only when moving
+      if (Math.abs(dg) >= 0.2 || Math.abs(db) >= 0.2) {
+        window._gyroDeltaGamma = dg;
+        window._gyroDeltaBeta  = db;
+      }
     }
 
     function onDeviceMotion(e) {
@@ -891,6 +913,7 @@ export function initMobile() {
       _velX = 0; _velY = 0; _velZ = 0; _wobbleT = 0;
       _sensorZeroCount = 0;
       _rawInitDone = false;
+      _calGamma = 0; _calBeta = 0; _usingSensor = false;
       window._gyroActive = true;
       if (st.canvasWrap) st.canvasWrap.dataset.gyro = '1';
       // Attach all inputs — whichever provides data wins
@@ -916,6 +939,7 @@ export function initMobile() {
       window._gyroAccelX   = 0;
       window._gyroAccelY   = 0;
       window._gyroAccelMag = 0;
+      _calGamma = 0; _calBeta = 0; _usingSensor = false;
       _targetX = 0; _targetY = 0; _targetZ = _baseDepth;
       _smoothX = 0; _smoothY = 0; _smoothZ = _baseDepth;
       _velX = 0; _velY = 0; _velZ = 0;
