@@ -8,7 +8,7 @@
 
 import * as THREE from 'three';
 import { AppState as st } from './state.js';
-import { drawCard } from './renderer.js';
+import { drawCard, drawCustomCard } from './renderer.js';
 import { getSpellPreset, FIRE_PALETTES } from './fx-engine.js';
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -118,93 +118,43 @@ function _getGrainTexture() {
 }
 
 // ── Card back texture ─────────────────────────────────────────────────────────
-// Dark premium card back with diamond grid and central star glyph.
-// Created once and shared across all cards in a session.
+// Uses the default card back image (assets/images/card-back-default.png).
+// Falls back to a solid dark colour if the image hasn't loaded yet,
+// and schedules a needsUpdate once it arrives.
 
 function _getCardBackTexture() {
   if (_backTex) return _backTex;
 
-  var W = TEX_W, H = TEX_H;
-  var canvas = document.createElement('canvas');
-  canvas.width = W; canvas.height = H;
-  var ctx = canvas.getContext('2d');
+  var imgEl = st.images && st.images[st.DEFAULT_BACK_ID];
 
-  // Deep background
-  ctx.fillStyle = '#07040f';
-  ctx.fillRect(0, 0, W, H);
-
-  // Soft radial glow from center
-  var grd = ctx.createRadialGradient(W/2, H/2, 0, W/2, H/2, Math.max(W,H) * 0.65);
-  grd.addColorStop(0,   'rgba(90,50,160,0.22)');
-  grd.addColorStop(0.5, 'rgba(40,20,80, 0.10)');
-  grd.addColorStop(1,   'rgba(0,0,0,0)');
-  ctx.fillStyle = grd;
-  ctx.fillRect(0, 0, W, H);
-
-  // Diamond grid pattern
-  var gs = Math.round(W / 7);
-  ctx.strokeStyle = 'rgba(150,100,255,0.09)';
-  ctx.lineWidth = 1.5;
-  for (var gy = -gs; gy < H + gs; gy += gs) {
-    for (var gx = -gs; gx < W + gs; gx += gs) {
-      ctx.beginPath();
-      ctx.moveTo(gx + gs/2, gy);
-      ctx.lineTo(gx + gs,   gy + gs/2);
-      ctx.lineTo(gx + gs/2, gy + gs);
-      ctx.lineTo(gx,        gy + gs/2);
-      ctx.closePath();
-      ctx.stroke();
-    }
+  if (imgEl && imgEl.complete && imgEl.naturalWidth > 0) {
+    // Image already in memory — create texture directly
+    _backTex = new THREE.Texture(imgEl);
+    _backTex.colorSpace  = THREE.SRGBColorSpace;
+    _backTex.minFilter   = THREE.LinearFilter;
+    _backTex.magFilter   = THREE.LinearFilter;
+    _backTex.needsUpdate = true;
+    return _backTex;
   }
 
-  // Outer border
-  var pad = 18, r = CORNER_R * W;
-  ctx.strokeStyle = 'rgba(160,120,255,0.38)';
-  ctx.lineWidth = 4;
-  ctx.beginPath();
-  ctx.moveTo(pad+r, pad); ctx.lineTo(W-pad-r, pad);
-  ctx.quadraticCurveTo(W-pad, pad,   W-pad, pad+r);
-  ctx.lineTo(W-pad, H-pad-r);
-  ctx.quadraticCurveTo(W-pad, H-pad, W-pad-r, H-pad);
-  ctx.lineTo(pad+r, H-pad);
-  ctx.quadraticCurveTo(pad, H-pad,   pad, H-pad-r);
-  ctx.lineTo(pad, pad+r);
-  ctx.quadraticCurveTo(pad, pad,     pad+r, pad);
-  ctx.closePath(); ctx.stroke();
-
-  // Inner border
-  var p2 = 32, r2 = r * 0.75;
-  ctx.strokeStyle = 'rgba(160,120,255,0.16)';
-  ctx.lineWidth = 2;
-  ctx.beginPath();
-  ctx.moveTo(p2+r2, p2); ctx.lineTo(W-p2-r2, p2);
-  ctx.quadraticCurveTo(W-p2, p2,   W-p2, p2+r2);
-  ctx.lineTo(W-p2, H-p2-r2);
-  ctx.quadraticCurveTo(W-p2, H-p2, W-p2-r2, H-p2);
-  ctx.lineTo(p2+r2, H-p2);
-  ctx.quadraticCurveTo(p2, H-p2,   p2, H-p2-r2);
-  ctx.lineTo(p2, p2+r2);
-  ctx.quadraticCurveTo(p2, p2,     p2+r2, p2);
-  ctx.closePath(); ctx.stroke();
-
-  // 8-pointed star glyph at center
-  var cx = W/2, cy = H/2;
-  var oR = W * 0.088, iR = W * 0.036;
-  ctx.fillStyle = 'rgba(190,150,255,0.30)';
-  ctx.beginPath();
-  for (var pt = 0; pt < 16; pt++) {
-    var ang = (pt * Math.PI / 8) - Math.PI / 2;
-    var rad = (pt % 2 === 0) ? oR : iR;
-    var px  = cx + Math.cos(ang) * rad;
-    var py  = cy + Math.sin(ang) * rad;
-    if (pt === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
-  }
-  ctx.closePath(); ctx.fill();
-
-  _backTex = new THREE.CanvasTexture(canvas);
+  // Placeholder: 1×1 dark pixel while the image loads
+  var fallbackCanvas = document.createElement('canvas');
+  fallbackCanvas.width = 2; fallbackCanvas.height = 2;
+  fallbackCanvas.getContext('2d').fillStyle = '#07040f';
+  fallbackCanvas.getContext('2d').fillRect(0, 0, 2, 2);
+  _backTex = new THREE.CanvasTexture(fallbackCanvas);
   _backTex.colorSpace = THREE.SRGBColorSpace;
   _backTex.minFilter  = THREE.LinearFilter;
   _backTex.magFilter  = THREE.LinearFilter;
+
+  // Swap in the real image once it finishes loading
+  if (imgEl) {
+    imgEl.onload = function() {
+      if (!_backTex) return;
+      _backTex.image       = imgEl;
+      _backTex.needsUpdate = true;
+    };
+  }
   return _backTex;
 }
 
@@ -608,7 +558,11 @@ function _captureCardTexture(obj, t) {
   st.ctx = cap;
 
   try {
-    drawCard(card, t, true /* isExport — no gyro transforms, no animation offsets */);
+    if (card.kind === 'custom') {
+      drawCustomCard(card, t, true);
+    } else {
+      drawCard(card, t, true /* isExport — no gyro transforms, no animation offsets */);
+    }
   } catch (e) { /* ignore missing-image errors during load */ }
 
   st.ctx = savedCtx;
@@ -786,6 +740,8 @@ function _setupRenderer(W, H) {
     document.body.appendChild(_particleEl);
   }
   window._showcase3DParticleCtx = _particleCtx;
+  window._showcase3DCanvas      = _overlayEl;
+  window._showcase3DParticleEl  = _particleEl;
 }
 
 // ── Card layout ───────────────────────────────────────────────────────────────
@@ -1213,6 +1169,8 @@ export function exitShowcase3D() {
     _particleCtx = null;
   }
   window._showcase3DParticleCtx = null;
+  window._showcase3DCanvas      = null;
+  window._showcase3DParticleEl  = null;
 
   _scene        = null;
   _camera       = null;

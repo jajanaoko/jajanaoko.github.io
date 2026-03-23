@@ -14,6 +14,29 @@ import { showToast } from './app.js';
 
 var _recTimer = null;
 var _countdownTimer = null;
+var _compositeCanvas = null;
+var _compositeCtx    = null;
+var _compositeRafId  = null;
+
+// Draw all visible layers onto _compositeCanvas each frame while recording
+function _compositeFrame() {
+  if (!_compositeCtx) return;
+  var cw = _compositeCanvas.width, ch = _compositeCanvas.height;
+  _compositeCtx.clearRect(0, 0, cw, ch);
+  // Layer 1 — main 2D canvas (background, BG FX)
+  if (st.canvas) _compositeCtx.drawImage(st.canvas, 0, 0, cw, ch);
+  // Layer 2 — Three.js WebGL card overlay
+  if (window._showcase3DCanvas) _compositeCtx.drawImage(window._showcase3DCanvas, 0, 0, cw, ch);
+  // Layer 3 — 2D spell particles above the card
+  if (window._showcase3DParticleEl) _compositeCtx.drawImage(window._showcase3DParticleEl, 0, 0, cw, ch);
+  _compositeRafId = requestAnimationFrame(_compositeFrame);
+}
+
+function _stopComposite() {
+  if (_compositeRafId) { cancelAnimationFrame(_compositeRafId); _compositeRafId = null; }
+  _compositeCanvas = null;
+  _compositeCtx    = null;
+}
 
 // ── Best available MIME type ──────────────────────────────────────────────────
 function getBestMime() {
@@ -64,9 +87,22 @@ export function startVideoRecording(durationSecs) {
     return;
   }
 
+  // In showcase mode the 3D card lives on a separate WebGL canvas overlaid on
+  // st.canvas. captureStream() only sees one canvas, so we composite all layers
+  // onto a scratch canvas and record that instead.
+  var captureTarget = st.canvas;
+  if (window._showcase3DActive && window._showcase3DCanvas) {
+    _compositeCanvas = document.createElement('canvas');
+    _compositeCanvas.width  = st.canvas.width;
+    _compositeCanvas.height = st.canvas.height;
+    _compositeCtx = _compositeCanvas.getContext('2d');
+    captureTarget = _compositeCanvas;
+    _compositeRafId = requestAnimationFrame(_compositeFrame);
+  }
+
   var stream;
-  try { stream = st.canvas.captureStream(60); }
-  catch (e) { showToast('Canvas capture failed.'); return; }
+  try { stream = captureTarget.captureStream(60); }
+  catch (e) { _stopComposite(); showToast('Canvas capture failed.'); return; }
 
   var chunks = [];
   var recorder;
@@ -89,6 +125,7 @@ export function startVideoRecording(durationSecs) {
 
   recorder.onstop = function() {
     st._recordingActive = false;
+    _stopComposite();
     setRecStatus('');
     setRecBtnState(false, '●');
 

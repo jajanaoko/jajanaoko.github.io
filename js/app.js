@@ -697,8 +697,8 @@ function render(t, dt) {
     } else if (_c.kind === 'rect') {
       drawRectObj(_c, false);
     } else if (_c.kind === 'custom') {
-      drawCustomCard(_c, t, false);
-      if (_c.spell && _c.spell.on) {
+      if (!window._showcase3DActive) drawCustomCard(_c, t, false);
+      if (_c.spell && _c.spell.on && !window._showcase3DActive) {
         var _ax = _c._ax || 0, _ay = _c._ay || 0, _as = _c._as || 1;
         var _hov = st.hoverData[_c.id];
         var _elev = (_hov && _hov.elev) ? _hov.elev : 1;
@@ -1054,6 +1054,14 @@ window.addEventListener('mouseup', function(e) {
     if (img.complete && img.naturalWidth) { draw(); }
     else { img.onload = draw; }
   });
+})();
+
+// ── Default card back ────────────────────────────────────────────────────────
+(function() {
+  var img = new Image();
+  img.onload = function() { st.needsRedraw = true; };
+  img.src = st.DEFAULT_BACK_SRC;
+  st.images[st.DEFAULT_BACK_ID] = img;
 })();
 
 // Draw texture overlay onto any context — cover-fills the st.canvas

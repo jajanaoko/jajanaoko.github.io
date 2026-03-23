@@ -18,7 +18,8 @@ export const AppState = {
   },
 
   // ── Default card back ID ─────────────────────────────────────
-  DEFAULT_BACK_ID: '__default_back__',
+  DEFAULT_BACK_ID:  '__default_back__',
+  DEFAULT_BACK_SRC: 'assets/images/card-back-default.png',
 
   // ── Card / asset collections ─────────────────────────────────
   cards: [],
