@@ -15,7 +15,8 @@ import { getSpellPreset, FIRE_PALETTES } from './fx-engine.js';
 
 var CARD_W      = 110;    // canvas units — must match renderer.js
 var CARD_H      = 154;
-var TEX_SCALE   = 4;      // texture resolution multiplier (4× for sharpness)
+// Mobile uses 2× (220×308) — still sharp on 3× DPR screens; saves 75% pixel ops in offscreen render
+var TEX_SCALE   = (st.MOBILE_PERF_QUERY && st.MOBILE_PERF_QUERY.matches) ? 2 : 4;
 var TEX_W       = CARD_W * TEX_SCALE;
 var TEX_H       = CARD_H * TEX_SCALE;
 var CARD_ASPECT = CARD_H / CARD_W;   // ≈ 1.4
@@ -60,9 +61,10 @@ var _backTex    = null;   // shared card-back texture (created once)
 var _keyLight     = null;   // directional light synced to st.globalLight each frame
 var _ambientLight = null;   // ambient light — tinted toward global light colour
 var _partMat      = null;   // shared ShaderMaterial for 3D spell particles (all cards)
+var _captureFrame = 0;      // frame counter for mobile texture-capture skip
 
 // ── Particle constants ────────────────────────────────────────────────────────
-var _PART_MAX = 200;  // pool size per card
+var _PART_MAX = (st.MOBILE_PERF_QUERY && st.MOBILE_PERF_QUERY.matches) ? 100 : 200;  // pool size per card
 
 // ── WebGL availability check ──────────────────────────────────────────────────
 
@@ -939,10 +941,16 @@ function _loop(now) {
   for (var i = 0; i < _cardObjs.length; i++) {
     var obj = _cardObjs[i];
     _tickPhysics(obj, dt, _dg, _db, _ax, _ay);
-    _captureCardTexture(obj, now);
-    _captureSheen(obj, now);
+    // Mobile: capture texture every 2nd frame — halves offscreen canvas render cost
+    var _doCapture = !(st.MOBILE_PERF_QUERY && st.MOBILE_PERF_QUERY.matches) || (_captureFrame % 2 === 0);
+    if (_doCapture) {
+      _captureCardTexture(obj, now);
+      _captureSheen(obj, now);
+    }
     _tickCardParticles(obj, dt);
   }
+
+  _captureFrame++;
 
   _renderer.render(_scene, _camera);
 

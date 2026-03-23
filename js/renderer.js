@@ -194,6 +194,8 @@ export function drawSurfaceFX(c, t, w, h, r, hov, isExport) {
     var shWidth = sh.width != null ? sh.width : 0.2;
     var shSpeed = sh.speed != null ? sh.speed : 0.7;
     var shBands = Math.round(sh.bands != null ? sh.bands : 2);
+    // Mobile: limit to 1 band to halve gradient/fillRect operations
+    if (st.MOBILE_PERF_QUERY && st.MOBILE_PERF_QUERY.matches) shBands = Math.min(shBands, 1);
     // Tilt-reactive brightness boost + velocity flash (fast motion = foil catch)
     var shTiltBoost = 1 + Math.abs(hov.tilt / 6) * 0.8 + _velFlash * 0.9;
     var shOpacityBoosted = shOpacity * shTiltBoost;
@@ -221,7 +223,8 @@ export function drawSurfaceFX(c, t, w, h, r, hov, isExport) {
       st.ctx.fillRect(-w/2, -h/2, w, h);
 
       // Iridescent rainbow pass (screen blend only) — thin hue-shifted overlay per band
-      if (shBlend === 'screen') {
+      // Mobile: skip — too many gradient ops per band for small GPU budget
+      if (shBlend === 'screen' && !(st.MOBILE_PERF_QUERY && st.MOBILE_PERF_QUERY.matches)) {
         var iHue = (t * 0.025 * shSpeed + bi * 120 + bandPhase * 180) % 360;
         var ird = st.ctx.createLinearGradient(gx1, gy1, gx2, gy2);
         ird.addColorStop(0,   'hsla('+iHue+',100%,70%,0)');
@@ -284,6 +287,8 @@ export function drawSurfaceFX(c, t, w, h, r, hov, isExport) {
     // Quantise seed to ~6 fps worth of frames to avoid per-frame pixel work.
     var seed = Math.floor(t * 0.006 * (0.1 + grAnim));
     var grSz = Math.ceil(Math.max(w, h) / grScale);
+    // Mobile: halve noise texture resolution (4× fewer pixel ops, upscaled by drawImage)
+    if (st.MOBILE_PERF_QUERY && st.MOBILE_PERF_QUERY.matches) grSz = Math.max(16, Math.ceil(grSz / 2));
     // Reuse a per-card cache object keyed by seed+size+amount
     if (!c._grainCache) c._grainCache = {};
     var cacheKey = seed + '_' + grSz + '_' + Math.round(grAmount * 100);
@@ -399,7 +404,8 @@ export function drawSurfaceFX(c, t, w, h, r, hov, isExport) {
       var gOffY = (refY / 100) * h;
 
       st.ctx.globalAlpha = gOpacity;
-      if (gHueShift && !isExport) {
+      // Mobile: skip hue-rotate filter — triggers a full GPU image compositing pass per card
+      if (gHueShift && !isExport && !(st.MOBILE_PERF_QUERY && st.MOBILE_PERF_QUERY.matches)) {
         st.ctx.filter = 'hue-rotate(' + Math.round(gHueShift) + 'deg) saturate(1.3)';
       }
       st.ctx.save();
@@ -419,7 +425,8 @@ export function drawSurfaceFX(c, t, w, h, r, hov, isExport) {
       st.ctx.restore();
 
       // Second pass: animated iridescent colour wash over the reflection
-      if (hoIrd > 0.05) {
+      // Mobile: skip — saves 1 gradient creation + fillRect per card per frame
+      if (hoIrd > 0.05 && !(st.MOBILE_PERF_QUERY && st.MOBILE_PERF_QUERY.matches)) {
         var iHue  = (t * 0.03 * hoSpd + hPhase * 50) % 360;
         var iGrad = st.ctx.createLinearGradient(-w / 2, -h / 2, w / 2, h / 2);
         iGrad.addColorStop(0,    'hsla(' + iHue                  + ',100%,70%,' + (hoIrd * 0.30) + ')');

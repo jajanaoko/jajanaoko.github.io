@@ -386,6 +386,8 @@ export function drawNeuralWebAura(ctx2d, w, h, t, intensity, spellState) {
   var spd  = (spellState && spellState.speed   != null) ? spellState.speed   : 1;
   // Count drives total node count (perimeter + interior)
   var countRaw = (spellState && spellState.count != null) ? spellState.count : 40;
+  // Mobile: halve node count — filament draw cost is O(N²), so this cuts strokes by ~75%
+  if (st.MOBILE_PERF_QUERY && st.MOBILE_PERF_QUERY.matches) countRaw = Math.max(8, Math.ceil(countRaw * 0.5));
   // Size drives node glow radius and line thickness
   var sizeMul  = (spellState && spellState.size  != null) ? spellState.size  : 2;
   // Spread drives interior node roam coverage (0.1–1)
@@ -573,8 +575,8 @@ export function drawParticleShape(pt, sz, t, spellScale) {
 
   var rgb = hexToRgb(pt.color);
   // Shadow blur is GPU-expensive; only apply on smaller particles (sz < 4)
-  // and skip entirely for smoke (it doesn't need glow)
-  if (pt.shape !== 'smoke' && sz < 4) {
+  // and skip entirely for smoke (it doesn't need glow) or on mobile
+  if (pt.shape !== 'smoke' && sz < 4 && !(st.MOBILE_PERF_QUERY && st.MOBILE_PERF_QUERY.matches)) {
     st.ctx.shadowColor = pt.color;
     st.ctx.shadowBlur = sz * 2.5;
   }
