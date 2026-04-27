@@ -94,6 +94,7 @@ st.canvas.addEventListener('wheel', function(e) {
   var delta = e.deltaY > 0 ? 0.9 : 1.1;
   st.camZoom = Math.max(0.3, Math.min(3, st.camZoom * delta));
   st.camZoomRef = st.camZoom;
+  st.needsRedraw = true;
   e.preventDefault();
 }, { passive: false });
 

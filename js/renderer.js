@@ -4,7 +4,7 @@
 //  drawGlobalLighting, updateInspector, inspector panels.
 // ============================================================
 
-import { AppState as st } from './state.js';
+import { AppState as st, markCardDirty } from './state.js';
 import { markDirty, showToast, syncRefs, updateCardCount, hideEmpty, updateInspector,
          createCard, createText, createRect, createCustomCard } from './app.js';
 import { BORDER_PRESETS, resolveBorder } from './border-presets.js';
@@ -119,7 +119,7 @@ export function updateHoverPhysics() {
     var cs = (c.scale || 1) * as_;
 
     var isHover = !inShowcase && (st.hoverCardId === c.id);
-    var targetElev = (isHover && !window._gyroActive) ? 1.05 : 1;
+    var targetElev = (isHover && !st.gyro.active) ? 1.05 : 1;
     hov.elev = lerp(hov.elev, targetElev, 0.10);
 
     var tiltTarget = 0;
@@ -131,17 +131,17 @@ export function updateHoverPhysics() {
     hov.tilt = lerp(hov.tilt, tiltTarget, 0.09);
 
     // Gyro/touch tilt
-    if (window._gyroActive) {
-      hov.tilt = lerp(hov.tilt, (window._gyroTiltX || 0), 0.16);
+    if (st.gyro.active) {
+      hov.tilt = lerp(hov.tilt, (st.gyro.tiltX || 0), 0.16);
       if (hov.gyroAxisX == null) hov.gyroAxisX = 0;
       if (hov.gyroAxisY == null) hov.gyroAxisY = 0;
-      hov.gyroAxisX = lerp(hov.gyroAxisX, Math.max(-1, Math.min(1, (window._gyroTiltX || 0) / 24)), 0.18);
-      hov.gyroAxisY = lerp(hov.gyroAxisY, Math.max(-1, Math.min(1, (window._gyroTiltY || 0) / 24)), 0.18);
+      hov.gyroAxisX = lerp(hov.gyroAxisX, Math.max(-1, Math.min(1, (st.gyro.tiltX || 0) / 24)), 0.18);
+      hov.gyroAxisY = lerp(hov.gyroAxisY, Math.max(-1, Math.min(1, (st.gyro.tiltY || 0) / 24)), 0.18);
       if (!hov.gyroLift) hov.gyroLift = 0;
       if (hov.gyroDepth == null) hov.gyroDepth = 0.18;
-      var liftTarget = 1 + Math.min(0.08, Math.abs(window._gyroTiltX || 0) * 0.0022 + Math.abs(window._gyroTiltY || 0) * 0.0016);
+      var liftTarget = 1 + Math.min(0.08, Math.abs(st.gyro.tiltX || 0) * 0.0022 + Math.abs(st.gyro.tiltY || 0) * 0.0016);
       hov.gyroLift = lerp(hov.gyroLift, liftTarget, 0.14);
-      hov.gyroDepth = lerp(hov.gyroDepth, window._gyroDepth != null ? window._gyroDepth : 0.18, 0.16);
+      hov.gyroDepth = lerp(hov.gyroDepth, st.gyro.depth != null ? st.gyro.depth : 0.18, 0.16);
     } else {
       if (hov.gyroLift) hov.gyroLift = lerp(hov.gyroLift, 1, 0.12);
       if (hov.gyroAxisX) hov.gyroAxisX = lerp(hov.gyroAxisX, 0, 0.16);
@@ -159,28 +159,12 @@ export function drawSurfaceFX(c, t, w, h, r, hov, isExport) {
 
   // Velocity flash — momentary brightness spike when moving fast (foil-catch effect)
   // Decays smoothly via the lerp in updateHoverPhysics; raw velocity drives it here.
-  var _velFlash = (window._gyroActive && window._gyroVelocity != null)
-    ? Math.min(0.55, window._gyroVelocity * 9)
+  var _velFlash = (st.gyro.active && st.gyro.velocity != null)
+    ? Math.min(0.55, st.gyro.velocity * 9)
     : 0;
 
-  // tiltFrac is shared across multiple FX (glare, luster) — hoist it here so
-  // luster doesn't read undefined when glare is off.
+  // tiltFrac feeds shimmer / ripple parallax and related FX.
   var tiltFrac = hov ? (hov.tilt / 6) : 0;
-
-  // Glare overlay
-  if (c.glare && c.glare.on) {
-    var gi = (c.glare.intensity || 1) * (1 + _velFlash * 0.7);
-    // Gyro shifts glare both horizontally (tiltX) and vertically (tiltY)
-    var gyroGlareY = window._gyroActive ? ((window._gyroTiltY || 0) / 10) : 0;
-    var glareX = tiltFrac * (w * 0.4);
-    var glareYOff = gyroGlareY * (h * 0.35);
-    var gGrad = st.ctx.createRadialGradient(glareX, -h * 0.2 + glareYOff, 0, glareX, -h * 0.2 + glareYOff, w * 0.8);
-    gGrad.addColorStop(0, 'rgba(255,255,255,' + (0.18 * gi) + ')');
-    gGrad.addColorStop(0.4, 'rgba(255,255,255,' + (0.04 * gi) + ')');
-    gGrad.addColorStop(1, 'rgba(255,255,255,0)');
-    st.ctx.fillStyle = gGrad;
-    st.ctx.fillRect(-w / 2, -h / 2, w, h);
-  }
 
   // ── Surface FX (drawn inside clip, over image) ────────────────────────
 
@@ -223,8 +207,9 @@ export function drawSurfaceFX(c, t, w, h, r, hov, isExport) {
       st.ctx.fillRect(-w/2, -h/2, w, h);
 
       // Iridescent rainbow pass (screen blend only) — thin hue-shifted overlay per band
-      // Mobile: skip — too many gradient ops per band for small GPU budget
-      if (shBlend === 'screen' && !(st.MOBILE_PERF_QUERY && st.MOBILE_PERF_QUERY.matches)) {
+      // Gated behind PERF.iridescentPass (high tier only) — too many gradient ops
+      // per band for mid/low GPU budgets.
+      if (shBlend === 'screen' && st.PERF.iridescentPass) {
         var iHue = (t * 0.025 * shSpeed + bi * 120 + bandPhase * 180) % 360;
         var ird = st.ctx.createLinearGradient(gx1, gy1, gx2, gy2);
         ird.addColorStop(0,   'hsla('+iHue+',100%,70%,0)');
@@ -235,44 +220,6 @@ export function drawSurfaceFX(c, t, w, h, r, hov, isExport) {
         st.ctx.fillStyle = ird;
         st.ctx.fillRect(-w/2, -h/2, w, h);
       }
-    }
-    st.ctx.restore();
-  }
-
-  // LUSTER — radial atmospheric depth glow
-  if (c.luster && c.luster.on) {
-    var lu = c.luster;
-    var luBlend = lu.blend || 'overlay';
-    var luCol = lu.color || '#c9a84c';
-    var luR = parseInt(luCol.slice(1,3),16), luG = parseInt(luCol.slice(3,5),16), luB = parseInt(luCol.slice(5,7),16);
-    var luOpacity = lu.opacity != null ? lu.opacity : 0.35;
-    var luRadius = lu.radius != null ? lu.radius : 0.75;
-    var luPulse = lu.pulse != null ? lu.pulse : 0.3;
-    st.ctx.save();
-    st.ctx.globalCompositeOperation = luBlend;
-    var pulse = 1 + luPulse * Math.sin(t * 0.0018);
-    var luR2 = Math.max(w, h) * luRadius * pulse;
-    // Tilt-reactive: glow centre drifts toward the lit side
-    var luCX = tiltFrac * w * 0.30;
-    var luCY = -(Math.abs(tiltFrac) * h * 0.12); // slight upward shift at any tilt
-    var luGrad = st.ctx.createRadialGradient(luCX, luCY, 0, luCX, luCY, luR2);
-    luGrad.addColorStop(0,   'rgba('+luR+','+luG+','+luB+','+luOpacity+')');
-    luGrad.addColorStop(0.5, 'rgba('+luR+','+luG+','+luB+','+(luOpacity*0.4)+')');
-    luGrad.addColorStop(1,   'rgba('+luR+','+luG+','+luB+',0)');
-    st.ctx.fillStyle = luGrad;
-    st.ctx.fillRect(-w/2, -h/2, w, h);
-    // Rim-light: secondary smaller glow from the opposite edge when tilting
-    if (Math.abs(tiltFrac) > 0.05) {
-      var rimX = -tiltFrac * w * 0.5;
-      var rimY = h * 0.3;
-      var rimR = Math.max(w, h) * luRadius * 0.5 * pulse;
-      var rimOpacity = luOpacity * Math.abs(tiltFrac) * 0.45;
-      var rimGrad = st.ctx.createRadialGradient(rimX, rimY, 0, rimX, rimY, rimR);
-      rimGrad.addColorStop(0,   'rgba('+luR+','+luG+','+luB+','+rimOpacity+')');
-      rimGrad.addColorStop(0.6, 'rgba('+luR+','+luG+','+luB+','+(rimOpacity*0.2)+')');
-      rimGrad.addColorStop(1,   'rgba('+luR+','+luG+','+luB+',0)');
-      st.ctx.fillStyle = rimGrad;
-      st.ctx.fillRect(-w/2, -h/2, w, h);
     }
     st.ctx.restore();
   }
@@ -368,79 +315,38 @@ export function drawSurfaceFX(c, t, w, h, r, hov, isExport) {
   // ── HOLO — mode-based holographic surface effect ─────────────────────
   if (c.holo && c.holo.on) {
     var ho = c.holo;
-    var hoMode  = ho.mode  || 'glass';
+    var hoMode  = ho.mode  || 'prism';
     var hoBlend = ho.blend || 'screen';
     var hoInt   = ho.intensity   != null ? ho.intensity   : 1.0;
     var hoIrd   = ho.iridescence != null ? ho.iridescence : 0.6;
+
+    // Global light → foil highlight tint. When global light is on, the
+    // specular hotspot and sweep pick up its colour and scale with its
+    // intensity, like a real reflective surface catching ambient lighting.
+    // When off, fall back to a soft warm white at reduced intensity for
+    // a semigloss paper feel rather than a harsh chrome look.
+    var gl = st.globalLight;
+    var glOn   = gl && gl.on && (gl.intensity || 0) > 0.001;
+    var glInt  = glOn ? Math.max(0, Math.min(1, gl.intensity || 0.6)) : 0.85;
+    var glHex  = glOn ? (gl.color || '#ffffff') : '#fff5e6';
+    var glRgb  = hexToRgbArr(glHex);
     var hoSpd   = ho.speed       != null ? ho.speed       : 1.0;
     var hoSz    = ho.size        != null ? ho.size        : 2.0;
     var hPhase  = c._holoPhase || 0;
-    var tiltDeg = hov.tilt + (c._ar || 0);
+    // Allow tilt through in both editor and showcase paths. In showcase the
+    // bake-time tilt is injected by _captureCardTexture in showcase-3d.js,
+    // which temporarily mutates hov.tilt from st.gyro.tiltY so the prism foil
+    // parallaxes in sync with the 3D scene motion. c._ar (the
+    // animation rotation delta) is still zeroed on export — the bake should
+    // only capture the showcase pose, not in-flight animation deltas.
+    var tiltDeg = hov.tilt + (isExport ? 0 : (c._ar || 0));
     var tiltNrm = tiltDeg / 6;
     var tiltAbs = Math.abs(tiltNrm);
 
     st.ctx.save();
     st.ctx.globalCompositeOperation = hoBlend;
 
-    if (hoMode === 'glass') {
-      // ── Glass Reflection ─────────────────────────────────────────────────
-      // Overlays the card image on the foil surface with parallax + iridescent
-      // hue cycling. Offset and scale are user-controllable.
-      var refX     = ho.refX     != null ? ho.refX     : 0;   // stored as -50..50
-      var refY     = ho.refY     != null ? ho.refY     : 0;
-      var refScale = ho.refScale != null ? ho.refScale : 1.0;
-      var gImgKey  = c.showBack ? c.backImg : c.frontImg;
-      var gImgEl   = gImgKey ? st.images[gImgKey] : null;
-
-      // Opacity: slow breath + strong tilt boost
-      var gBreath  = 0.08 + 0.04 * Math.sin(t * 0.001 * hoSpd + hPhase);
-      var gOpacity = Math.min(0.9, (gBreath + tiltAbs * 0.55) * hoInt);
-
-      // Hue shift oscillates ±50° — gives rainbow cast without full spin
-      var gHueShift = Math.sin((t * 0.00018 * hoSpd + tiltAbs * 0.5) * Math.PI * 2) * 50 * hoIrd;
-
-      // Tilt-driven parallax + user-set offset
-      var gOffX = (refX / 100) * w + tiltNrm * w * 0.08;
-      var gOffY = (refY / 100) * h;
-
-      st.ctx.globalAlpha = gOpacity;
-      // Mobile: skip hue-rotate filter — triggers a full GPU image compositing pass per card
-      if (gHueShift && !isExport && !(st.MOBILE_PERF_QUERY && st.MOBILE_PERF_QUERY.matches)) {
-        st.ctx.filter = 'hue-rotate(' + Math.round(gHueShift) + 'deg) saturate(1.3)';
-      }
-      st.ctx.save();
-      st.ctx.transform(refScale, 0, 0, refScale, gOffX, gOffY);
-      if (gImgEl && gImgEl.complete && gImgEl.naturalWidth > 0) {
-        st.ctx.drawImage(gImgEl, -w / 2, -h / 2, w, h);
-      } else {
-        // Gradient fallback when no card image exists
-        var gFill = st.ctx.createLinearGradient(-w / 2, -h / 2, w / 2, h / 2);
-        gFill.addColorStop(0,    'rgba(140,80,255,1)');
-        gFill.addColorStop(0.33, 'rgba(255,60,180,1)');
-        gFill.addColorStop(0.67, 'rgba(60,200,255,1)');
-        gFill.addColorStop(1,    'rgba(80,255,140,1)');
-        st.ctx.fillStyle = gFill;
-        st.ctx.fillRect(-w / 2, -h / 2, w, h);
-      }
-      st.ctx.restore();
-
-      // Second pass: animated iridescent colour wash over the reflection
-      // Mobile: skip — saves 1 gradient creation + fillRect per card per frame
-      if (hoIrd > 0.05 && !(st.MOBILE_PERF_QUERY && st.MOBILE_PERF_QUERY.matches)) {
-        var iHue  = (t * 0.03 * hoSpd + hPhase * 50) % 360;
-        var iGrad = st.ctx.createLinearGradient(-w / 2, -h / 2, w / 2, h / 2);
-        iGrad.addColorStop(0,    'hsla(' + iHue                  + ',100%,70%,' + (hoIrd * 0.30) + ')');
-        iGrad.addColorStop(0.33, 'hsla(' + ((iHue + 120) % 360) + ',100%,70%,' + (hoIrd * 0.18) + ')');
-        iGrad.addColorStop(0.67, 'hsla(' + ((iHue + 240) % 360) + ',100%,70%,' + (hoIrd * 0.18) + ')');
-        iGrad.addColorStop(1,    'hsla(' + ((iHue + 60)  % 360) + ',100%,70%,' + (hoIrd * 0.30) + ')');
-        st.ctx.filter = 'none';
-        st.ctx.globalCompositeOperation = 'screen';
-        st.ctx.globalAlpha = 1;
-        st.ctx.fillStyle = iGrad;
-        st.ctx.fillRect(-w / 2, -h / 2, w, h);
-      }
-
-    } else if (hoMode === 'sparkle') {
+    if (hoMode === 'sparkle') {
       // ── Sparkle ───────────────────────────────────────────────────────────
       // Random scattered glitter: 25% are 4-point cross stars, rest are dots.
       // All flash independently at different speeds.
@@ -536,33 +442,135 @@ export function drawSurfaceFX(c, t, w, h, r, hov, isExport) {
         }
       }
 
-    } else if (hoMode === 'aurora') {
-      // ── Aurora ────────────────────────────────────────────────────────────
-      // Two layered diagonal rainbow gradients that slowly sweep across the
-      // card, producing a Northern Lights effect.
-      var aTime = t * 0.0003 * hoSpd;
-      var aDiag = Math.sqrt(w * w + h * h);
-      var aPasses = [
-        { angle:  0.38, speedMult: 1.0 },
-        { angle: -0.22, speedMult: 0.55 }
-      ];
-      for (var ap = 0; ap < aPasses.length; ap++) {
-        var ang  = aPasses[ap].angle;
-        var aCos = Math.cos(ang), aSin = Math.sin(ang);
-        var aHueOff = ((aTime * aPasses[ap].speedMult * 80) + ap * 180 + hPhase * 120) % 360;
-        var aGrad = st.ctx.createLinearGradient(
-          -aCos * aDiag, -aSin * aDiag,
-           aCos * aDiag,  aSin * aDiag
+    } else if (hoMode === 'prism') {
+      // ── Prism Foil ────────────────────────────────────────────────────────
+      // Layered holographic foil: depth vignette, iridescent art re-tint,
+      // diagonal foil pattern, moving specular hotspot, and rainbow sweep.
+      // Every pass fills the full card bounds (edge-to-edge, no gaps) and
+      // reacts to tiltNrm so the surface feels alive when the card moves.
+      // Reads ho.depth, ho.pattern (0..1), ho.tint (#hex) in addition to
+      // the shared intensity / iridescence / speed slots.
+      var prDepth   = ho.depth   != null ? ho.depth   : 0.6;
+      var prPattern = ho.pattern != null ? ho.pattern : 0.55;
+      // Tint is stored in ho.color (shared field name with the other SFX
+      // color pickers so makeSfxHandlers auto-wires it via pick-holo-color).
+      var prTintHex = ho.color || '#b07fff';
+      var prTintR = parseInt(prTintHex.slice(1, 3), 16);
+      var prTintG = parseInt(prTintHex.slice(3, 5), 16);
+      var prTintB = parseInt(prTintHex.slice(5, 7), 16);
+
+      var prTime    = t * 0.001 * hoSpd;
+      var prBaseHue = (prTime * 40 + hPhase * 120) % 360;
+      // Light source above card — hotspot position is OPPOSITE to tilt, so
+      // tilting right pushes the highlight left like a real reflective surface.
+      var prHotX = -tiltNrm * w * 0.45;
+      var prHotY = 0;
+
+      // ── Pass 1 — Depth vignette ─────────────────────────────────────────
+      // Darkens corners to give the foil surface volume. 'multiply' blend so
+      // it reads as true depth rather than a grey overlay.
+      if (prDepth > 0.02) {
+        var vGrad = st.ctx.createRadialGradient(
+          0, 0, Math.min(w, h) * 0.18,
+          0, 0, Math.max(w, h) * 0.72
         );
-        var nStops = 9;
-        for (var ak = 0; ak <= nStops; ak++) {
-          var af   = ak / nStops;
-          var aHue = (aHueOff + af * 360) % 360;
-          var aA   = Math.sin(af * Math.PI) * 0.24 * hoInt * (0.4 + 0.6 * hoIrd);
-          aGrad.addColorStop(af, 'hsla(' + aHue + ',100%,68%,' + aA + ')');
-        }
+        var vA = 0.55 * prDepth;
+        vGrad.addColorStop(0,   'rgba(255,255,255,0)');
+        vGrad.addColorStop(0.65,'rgba(0,0,0,' + (vA * 0.25) + ')');
+        vGrad.addColorStop(1,   'rgba(0,0,0,' + vA + ')');
+        st.ctx.globalCompositeOperation = 'multiply';
         st.ctx.globalAlpha = 1;
-        st.ctx.fillStyle   = aGrad;
+        st.ctx.fillStyle = vGrad;
+        st.ctx.fillRect(-w / 2, -h / 2, w, h);
+      }
+
+      // ── Pass 2 — Iridescent art re-tint ─────────────────────────────────
+      // Diagonal rainbow gradient over the art using 'overlay' blend so the
+      // original art still reads through while picking up prismatic shifts.
+      // Angle rotates slowly AND with tilt so the hues "breathe" as you move.
+      var prAngle = prTime * 0.25 + tiltNrm * 0.55;
+      var prCos   = Math.cos(prAngle), prSin = Math.sin(prAngle);
+      var prDiag  = Math.sqrt(w * w + h * h) * 0.62;
+      var irGrad  = st.ctx.createLinearGradient(
+        -prCos * prDiag, -prSin * prDiag,
+         prCos * prDiag,  prSin * prDiag
+      );
+      var irStops = 5;
+      for (var irk = 0; irk <= irStops; irk++) {
+        var irF = irk / irStops;
+        var irH = (prBaseHue + irF * 280) % 360;
+        var irA = 0.42 * hoInt * hoIrd * (0.55 + 0.45 * Math.sin(irF * Math.PI));
+        irGrad.addColorStop(irF, 'hsla(' + irH + ',100%,65%,' + irA + ')');
+      }
+      st.ctx.globalCompositeOperation = 'overlay';
+      st.ctx.globalAlpha = 1;
+      st.ctx.fillStyle = irGrad;
+      st.ctx.fillRect(-w / 2, -h / 2, w, h);
+
+      // ── Pass 3 — Diagonal foil pattern ──────────────────────────────────
+      // Fine parallel lines at 30° that parallax with tilt. This is what
+      // sells the "foil" feel — it looks like a printed holographic surface.
+      // Gated behind hoIrd > 0.05 and prPattern > 0 so users can fully
+      // disable the pattern layer for a smoother prism look.
+      // Mobile: skip — many strokeline ops per frame.
+      if (prPattern > 0.02 && !(st.MOBILE_PERF_QUERY && st.MOBILE_PERF_QUERY.matches)) {
+        var prGap  = Math.max(2.4, 7 - hoSz * 0.6);   // Size slider → line density
+        var prShift = ((prTime * 18 + tiltNrm * w * 0.4) % prGap + prGap) % prGap;
+        var prSpan  = Math.sqrt(w * w + h * h) + prGap * 2;
+        st.ctx.save();
+        st.ctx.globalCompositeOperation = 'overlay';
+        st.ctx.globalAlpha = 0.28 * hoInt * prPattern;
+        st.ctx.rotate(Math.PI / 6);    // 30° diagonal
+        st.ctx.lineWidth   = 0.65;
+        st.ctx.strokeStyle = 'rgba(255,255,255,0.85)';
+        st.ctx.beginPath();
+        for (var pl = -prSpan; pl <= prSpan; pl += prGap) {
+          st.ctx.moveTo(pl + prShift, -prSpan);
+          st.ctx.lineTo(pl + prShift,  prSpan);
+        }
+        st.ctx.stroke();
+        st.ctx.restore();
+      }
+
+      // ── Pass 4 — Specular hotspot ───────────────────────────────────────
+      // The "card catches the light" glint. Centre tinted by global light
+      // colour (or soft warm white when light is off) for a semigloss paper
+      // feel. Intensity scales with global light so the card surface reacts
+      // naturally to the scene lighting — no more harsh chrome white.
+      var hotR = Math.max(w, h) * (0.50 + prDepth * 0.18);
+      var hotA = (0.38 + tiltAbs * 0.50) * hoInt * glInt;
+      var hotGrad = st.ctx.createRadialGradient(prHotX, prHotY, 0, prHotX, prHotY, hotR);
+      hotGrad.addColorStop(0,   'rgba(' + glRgb[0] + ',' + glRgb[1] + ',' + glRgb[2] + ',' + hotA + ')');
+      hotGrad.addColorStop(0.28,'rgba(' + prTintR + ',' + prTintG + ',' + prTintB + ',' + (hotA * 0.65) + ')');
+      hotGrad.addColorStop(0.75,'rgba(' + prTintR + ',' + prTintG + ',' + prTintB + ',' + (hotA * 0.15) + ')');
+      hotGrad.addColorStop(1,   'rgba(' + prTintR + ',' + prTintG + ',' + prTintB + ',0)');
+      st.ctx.globalCompositeOperation = 'screen';
+      st.ctx.globalAlpha = 1;
+      st.ctx.fillStyle = hotGrad;
+      st.ctx.fillRect(-w / 2, -h / 2, w, h);
+
+      // ── Pass 5 — Rainbow sweep band ─────────────────────────────────────
+      // The "foil catch" moment — a rainbow stripe that drifts with tilt.
+      // Scaled by global light intensity so it stays subtle at low light
+      // and only really pops when the scene is brightly lit. Uses
+      // 'color-dodge' for the vivid prismatic pop that sells the foil.
+      if (hoIrd > 0.08) {
+        var swPos = ((tiltNrm * 0.5 + prTime * 0.15) % 1 + 1) % 1;    // 0..1
+        var swCx  = (swPos * 2 - 1) * w * 0.55;
+        var swBw  = w * 0.32;
+        var swGrad = st.ctx.createLinearGradient(
+          swCx - swBw, -h / 2,
+          swCx + swBw,  h / 2
+        );
+        var swA = 0.32 * hoInt * hoIrd * glInt;
+        swGrad.addColorStop(0,    'rgba(255,255,255,0)');
+        swGrad.addColorStop(0.35, 'hsla(' + ((prBaseHue + 180) % 360) + ',100%,72%,' + (swA * 0.45) + ')');
+        swGrad.addColorStop(0.5,  'hsla(' + ((prBaseHue + 240) % 360) + ',100%,78%,' + swA + ')');
+        swGrad.addColorStop(0.65, 'hsla(' + ((prBaseHue + 300) % 360) + ',100%,72%,' + (swA * 0.45) + ')');
+        swGrad.addColorStop(1,    'rgba(255,255,255,0)');
+        st.ctx.globalCompositeOperation = 'color-dodge';
+        st.ctx.globalAlpha = 1;
+        st.ctx.fillStyle = swGrad;
         st.ctx.fillRect(-w / 2, -h / 2, w, h);
       }
     }
@@ -593,8 +601,8 @@ export function drawCard(c, t, isExport) {
 
   var elevScale = isExport ? 1 : (hov.elev * (hov.gyroLift || 1));
   var hoverTilt = isExport ? 0 : hov.tilt;
-  var gyroAxisX = window._gyroActive ? (hov.gyroAxisX || 0) : 0;
-  var gyroAxisY = window._gyroActive ? (hov.gyroAxisY || 0) : 0;
+  var gyroAxisX = st.gyro.active ? (hov.gyroAxisX || 0) : 0;
+  var gyroAxisY = st.gyro.active ? (hov.gyroAxisY || 0) : 0;
   var gyroShiftX = isExport ? 0 : gyroAxisX * (w * 0.075);
   var gyroShiftY = isExport ? 0 : gyroAxisY * (h * 0.065);
   var gyroDepthScaleX = isExport ? 1 : (1 + Math.abs(gyroAxisX) * 0.02);
@@ -615,7 +623,7 @@ export function drawCard(c, t, isExport) {
   // along the card's own axes regardless of the card's rotation angle.
   // skewX: left/right tilt shears horizontally (gyroAxisY drives X lean)
   // skewY: forward/back tilt shears vertically  (gyroAxisX drives Y lean)
-  if (!isExport && window._gyroActive && (gyroAxisX !== 0 || gyroAxisY !== 0)) {
+  if (!isExport && st.gyro.active && (gyroAxisX !== 0 || gyroAxisY !== 0)) {
     st.ctx.transform(1, -gyroAxisX * 0.038, gyroAxisY * 0.052, 1, 0, 0);
   }
 
@@ -647,30 +655,6 @@ export function drawCard(c, t, isExport) {
     st.ctx.restore();
   }
 
-  // Glow — layered bloom passes drawn BEFORE card body so they show outside the card edge
-  if (c.glow && c.glow.on) {
-    var glowPulse = c.glow.intensity * (1 + 0.3 * Math.sin(t * 0.003));
-    var glowColor = c.glow.color || '#C9A84C';
-    // Multiple passes at increasing blur = soft bloom effect
-    var glowLayers = [
-      { blur: 6  * glowPulse, alpha: 0.9 },
-      { blur: 14 * glowPulse, alpha: 0.65 },
-      { blur: 28 * glowPulse, alpha: 0.4 },
-      { blur: 50 * glowPulse, alpha: 0.2 },
-    ];
-    glowLayers.forEach(function(gl) {
-      st.ctx.save();
-      st.ctx.shadowColor = glowColor;
-      st.ctx.shadowBlur = gl.blur;
-      st.ctx.strokeStyle = glowColor;
-      st.ctx.globalAlpha = gl.alpha;
-      st.ctx.lineWidth = 2;
-      roundRect(st.ctx, -w / 2, -h / 2, w, h, r);
-      st.ctx.stroke();
-      st.ctx.restore();
-    });
-  }
-
   // Selection outline
   var isSel = st.selectedRef.indexOf(c.id) >= 0;
   if (isSel && !isExport && !document.body.classList.contains('showcase-mode')) {
@@ -684,7 +668,7 @@ export function drawCard(c, t, isExport) {
     st.ctx.restore();
   }
 
-  // Card body — no shadow here, glow already drawn above
+  // Card body — clear any stray shadow state before drawing
   st.ctx.shadowBlur = 0;
   roundRect(st.ctx, -w / 2, -h / 2, w, h, r);
   st.ctx.save();
@@ -926,29 +910,6 @@ export function drawCustomCard(c, t, isExport) {
     roundRectPath(st.ctx, -CW / 2, -CH / 2, CW, CH, CR);
     st.ctx.fill();
     st.ctx.restore();
-  }
-
-  // Glow
-  if (c.glow && c.glow.on) {
-    var glowPulse = c.glow.intensity * (1 + 0.3 * Math.sin(t * 0.003));
-    var glowColor = c.glow.color || '#C9A84C';
-    var glowLayers = [
-      { blur: 6  * glowPulse, alpha: 0.9 },
-      { blur: 14 * glowPulse, alpha: 0.65 },
-      { blur: 28 * glowPulse, alpha: 0.4 },
-      { blur: 50 * glowPulse, alpha: 0.2 },
-    ];
-    glowLayers.forEach(function(gl) {
-      st.ctx.save();
-      st.ctx.shadowColor = glowColor;
-      st.ctx.shadowBlur = gl.blur;
-      st.ctx.strokeStyle = glowColor;
-      st.ctx.globalAlpha = gl.alpha;
-      st.ctx.lineWidth = 2;
-      roundRectPath(st.ctx, -CW / 2, -CH / 2, CW, CH, CR);
-      st.ctx.stroke();
-      st.ctx.restore();
-    });
   }
 
   // 1. Base gradient background
@@ -1232,16 +1193,6 @@ export function refreshInspectorContent() {
   document.getElementById('sl-rot').value = first.rot;
   document.getElementById('val-rot').textContent = Math.round(first.rot) + '°';
 
-  // Glare
-  var glareOn = first.glare && first.glare.on;
-  var toggleGlare = document.getElementById('toggle-glare');
-  toggleGlare.classList.toggle('on', !!glareOn);
-  document.getElementById('glare-controls').style.display = glareOn ? 'block' : 'none';
-  if (glareOn) {
-    document.getElementById('sl-glare').value = first.glare.intensity;
-    document.getElementById('val-glare').textContent = (first.glare.intensity || 1).toFixed(1);
-  }
-
   // Drop Shadow
   var shadowOn = first.shadow && first.shadow.on;
   document.getElementById('toggle-shadow').classList.toggle('on', !!shadowOn);
@@ -1256,17 +1207,6 @@ export function refreshInspectorContent() {
   document.getElementById('val-shadow-x').textContent = sh.offsetX != null ? sh.offsetX : 6;
   document.getElementById('sl-shadow-y').value = sh.offsetY != null ? sh.offsetY : 10;
   document.getElementById('val-shadow-y').textContent = sh.offsetY != null ? sh.offsetY : 10;
-
-  // Glow
-  var glowOn = first.glow && first.glow.on;
-  var toggleGlow = document.getElementById('toggle-glow');
-  toggleGlow.classList.toggle('on', !!glowOn);
-  document.getElementById('glow-controls').style.display = glowOn ? 'block' : 'none';
-  if (glowOn) {
-    document.getElementById('pick-glow').value = first.glow.color || '#C9A84C';
-    document.getElementById('sl-glow').value = first.glow.intensity;
-    document.getElementById('val-glow').textContent = (first.glow.intensity || 1).toFixed(1);
-  }
 
   // Spell effects
   var sp = first.spell || {};
@@ -1318,19 +1258,18 @@ export function refreshInspectorContent() {
     }
   }
   syncSfx('shimmer', 'toggle-shimmer', 'shimmer-controls', { opacity:0.22, width:0.2, speed:0.7, bands:2 });
-  syncSfx('luster',  'toggle-luster',  'luster-controls',  { opacity:0.35, radius:0.75, pulse:0.3 });
   syncSfx('grain',   'toggle-grain',   'grain-controls',   { amount:0.12, scale:1.0, anim:0.4 });
   syncSfx('ripple',  'toggle-ripple',  'ripple-controls',  { opacity:0.18, speed:0.8, rings:3, spread:0.5 });
-  syncSfx('holo', 'toggle-holo', 'holo-controls', { mode:'glass', intensity:1.0, iridescence:0.6, speed:1.0, size:2.0, refX:0, refY:0, refScale:1.0 });
+  syncSfx('holo', 'toggle-holo', 'holo-controls', { mode:'prism', intensity:1.0, iridescence:0.6, speed:1.0, size:2.0, depth:0.6, pattern:0.55, color:'#b07fff' });
   // Show/hide mode-specific sub-panels
   (function() {
     var hoFx   = first.holo || {};
-    var hoMode = hoFx.mode || 'glass';
-    var glassDiv = document.getElementById('holo-glass-controls');
+    var hoMode = hoFx.mode || 'prism';
+    var prismDiv = document.getElementById('holo-prism-controls');
     var sizeRow  = document.getElementById('holo-size-row');
     var isOn = !!hoFx.on;
-    if (glassDiv) glassDiv.style.display = (isOn && hoMode === 'glass') ? 'block' : 'none';
-    if (sizeRow)  sizeRow.style.display  = (isOn && (hoMode === 'sparkle' || hoMode === 'hex')) ? 'flex' : 'none';
+    if (prismDiv) prismDiv.style.display = (isOn && hoMode === 'prism') ? 'block' : 'none';
+    if (sizeRow)  sizeRow.style.display  = (isOn && (hoMode === 'sparkle' || hoMode === 'hex' || hoMode === 'prism')) ? 'flex' : 'none';
   }());
 }
 
@@ -1373,56 +1312,39 @@ export function applySurface(imgId) {
     if (st.activeSurface === 'front') c.frontImg = imgId;
     else c.backImg = imgId;
     // Invalidate holo sampling and ghost caches — image changed
+    markCardDirty(c);
   });
   markDirty();
   refreshSurfacePreview();
 }
 
 document.getElementById('toggle-shadow').addEventListener('click', function() {
-  getSelectedCards().forEach(function(c) { getOrInitShadow(c).on = !getOrInitShadow(c).on; });
+  getSelectedCards().forEach(function(c) { getOrInitShadow(c).on = !getOrInitShadow(c).on; markCardDirty(c); });
   updateInspector();
 });
 document.getElementById('pick-shadow-color').addEventListener('input', function() {
   var v = this.value;
-  getSelectedCards().forEach(function(c) { getOrInitShadow(c).color = v; });
+  getSelectedCards().forEach(function(c) { getOrInitShadow(c).color = v; markCardDirty(c); });
 });
 document.getElementById('sl-shadow-opacity').addEventListener('input', function() {
   var v = parseFloat(this.value);
   document.getElementById('val-shadow-opacity').textContent = v.toFixed(2);
-  getSelectedCards().forEach(function(c) { getOrInitShadow(c).opacity = v; });
+  getSelectedCards().forEach(function(c) { getOrInitShadow(c).opacity = v; markCardDirty(c); });
 });
 document.getElementById('sl-shadow-blur').addEventListener('input', function() {
   var v = parseFloat(this.value);
   document.getElementById('val-shadow-blur').textContent = v;
-  getSelectedCards().forEach(function(c) { getOrInitShadow(c).blur = v; });
+  getSelectedCards().forEach(function(c) { getOrInitShadow(c).blur = v; markCardDirty(c); });
 });
 document.getElementById('sl-shadow-x').addEventListener('input', function() {
   var v = parseFloat(this.value);
   document.getElementById('val-shadow-x').textContent = v;
-  getSelectedCards().forEach(function(c) { getOrInitShadow(c).offsetX = v; });
+  getSelectedCards().forEach(function(c) { getOrInitShadow(c).offsetX = v; markCardDirty(c); });
 });
 document.getElementById('sl-shadow-y').addEventListener('input', function() {
   var v = parseFloat(this.value);
   document.getElementById('val-shadow-y').textContent = v;
-  getSelectedCards().forEach(function(c) { getOrInitShadow(c).offsetY = v; });
-});
-
-// Toggle glow
-document.getElementById('toggle-glow').addEventListener('click', function() {
-  getSelectedCards().forEach(function(c) {
-    if (!c.glow) c.glow = { on: false, color: '#C9A84C', intensity: 1 };
-    c.glow.on = !c.glow.on;
-  });
-  updateInspector();
-});
-document.getElementById('sl-glow').addEventListener('input', function() {
-  var v = parseFloat(this.value);
-  document.getElementById('val-glow').textContent = v.toFixed(1);
-  getSelectedCards().forEach(function(c) { if (c.glow) c.glow.intensity = v; });
-});
-document.getElementById('pick-glow').addEventListener('input', function() {
-  var v = this.value;
-  getSelectedCards().forEach(function(c) { if (c.glow) c.glow.color = v; });
+  getSelectedCards().forEach(function(c) { getOrInitShadow(c).offsetY = v; markCardDirty(c); });
 });
 
 // ---- Spell Effects ----
@@ -1443,6 +1365,7 @@ document.getElementById('toggle-spell').addEventListener('click', function() {
     sp.on = !sp.on;
     // Clear pool on disable so particles vanish cleanly
     if (!sp.on) clearParticlePool(c.id);
+    markCardDirty(c);
   });
   updateInspector();
 });
@@ -1494,6 +1417,7 @@ document.querySelectorAll('.spell-preset-btn').forEach(function(btn) {
       if (pd2.nwBgOpacity!= null) sp.nwBgOpacity = pd2.nwBgOpacity;
       // Reset particle pool so new preset starts fresh
       clearParticlePool(c.id);
+      markCardDirty(c);
     });
     // Sync sliders to new defaults
     if (pd2.count      != null) { document.getElementById('sl-spell-count').value      = pd2.count;      document.getElementById('val-spell-count').textContent      = pd2.count; }
@@ -1516,60 +1440,63 @@ document.querySelectorAll('.spell-preset-btn').forEach(function(btn) {
 
 document.getElementById('pick-spell-color').addEventListener('input', function() {
   var v = this.value;
-  getSelectedCards().forEach(function(c) { var sp = getOrInitSpell(c); sp.color = v; clearParticlePool(c.id); });
+  getSelectedCards().forEach(function(c) { var sp = getOrInitSpell(c); sp.color = v; clearParticlePool(c.id); markCardDirty(c); });
 });
 
 document.getElementById('sl-spell-intensity').addEventListener('input', function() {
   var v = parseFloat(this.value);
   document.getElementById('val-spell-intensity').textContent = v.toFixed(1);
-  getSelectedCards().forEach(function(c) { getOrInitSpell(c).intensity = v; });
+  getSelectedCards().forEach(function(c) { getOrInitSpell(c).intensity = v; markCardDirty(c); });
 });
 
 document.getElementById('sl-spell-count').addEventListener('input', function() {
   var v = parseInt(this.value);
   document.getElementById('val-spell-count').textContent = v;
-  getSelectedCards().forEach(function(c) { getOrInitSpell(c).count = v; });
+  getSelectedCards().forEach(function(c) { getOrInitSpell(c).count = v; markCardDirty(c); });
 });
 
 document.getElementById('sl-spell-size').addEventListener('input', function() {
   var v = parseFloat(this.value);
   document.getElementById('val-spell-size').textContent = v.toFixed(1);
-  getSelectedCards().forEach(function(c) { getOrInitSpell(c).size = v; });
+  getSelectedCards().forEach(function(c) { getOrInitSpell(c).size = v; markCardDirty(c); });
 });
 
 document.getElementById('sl-spell-speed').addEventListener('input', function() {
   var v = parseFloat(this.value);
   document.getElementById('val-spell-speed').textContent = v.toFixed(1);
-  getSelectedCards().forEach(function(c) { getOrInitSpell(c).speed = v; });
+  getSelectedCards().forEach(function(c) { getOrInitSpell(c).speed = v; markCardDirty(c); });
 });
 
 document.getElementById('sl-spell-spread').addEventListener('input', function() {
   var v = parseFloat(this.value);
   document.getElementById('val-spell-spread').textContent = v.toFixed(2);
-  getSelectedCards().forEach(function(c) { getOrInitSpell(c).spread = v; });
+  getSelectedCards().forEach(function(c) { getOrInitSpell(c).spread = v; markCardDirty(c); });
 });
 
 document.getElementById('sl-spell-scale').addEventListener('input', function() {
   var v = parseFloat(this.value);
   document.getElementById('val-spell-scale').textContent = v.toFixed(2);
-  getSelectedCards().forEach(function(c) { getOrInitSpell(c).nwScale = v; });
+  getSelectedCards().forEach(function(c) { getOrInitSpell(c).nwScale = v; markCardDirty(c); });
 });
 
 document.getElementById('sl-spell-bgopacity').addEventListener('input', function() {
   var v = parseFloat(this.value);
   document.getElementById('val-spell-bgopacity').textContent = v.toFixed(2);
-  getSelectedCards().forEach(function(c) { getOrInitSpell(c).nwBgOpacity = v; });
+  getSelectedCards().forEach(function(c) { getOrInitSpell(c).nwBgOpacity = v; markCardDirty(c); });
 });
 
 document.querySelectorAll('.shape-btn').forEach(function(btn) {
   btn.addEventListener('click', function() {
     var shape = btn.dataset.shape;
-    getSelectedCards().forEach(function(c) { var sp = getOrInitSpell(c); sp.shape = shape; clearParticlePool(c.id); });
+    getSelectedCards().forEach(function(c) { var sp = getOrInitSpell(c); sp.shape = shape; clearParticlePool(c.id); markCardDirty(c); });
     document.querySelectorAll('.shape-btn').forEach(function(b) { b.classList.toggle('active', b.dataset.shape === shape); });
   });
 });
 
 // ── Surface FX handlers ──────────────────────────────────────────────────
+// This single helper wires the toggle, sliders, blend select, and color picker
+// for shimmer / grain / ripple / holo. Every forEach loop below
+// calls markCardDirty(c) so the showcase texture baker re-renders on change.
 export function makeSfxHandlers(key, toggleId, defaults) {
   // Toggle
   document.getElementById(toggleId).addEventListener('click', function() {
@@ -1577,6 +1504,7 @@ export function makeSfxHandlers(key, toggleId, defaults) {
       if (!c[key]) c[key] = Object.assign({ on: false }, defaults);
       c[key].on = !c[key].on;
       if (key === 'holo') { delete c._holoCache; }
+      markCardDirty(c);
     });
     updateInspector();
   });
@@ -1595,6 +1523,7 @@ export function makeSfxHandlers(key, toggleId, defaults) {
           c[key][k] = v;
           // Holo: invalidate sparkle cache when size changes (count depends on size)
           if (key === 'holo' && k === 'size') { delete c._holoCache; }
+          markCardDirty(c);
         });
       });
     }
@@ -1607,6 +1536,7 @@ export function makeSfxHandlers(key, toggleId, defaults) {
       getSelectedCards().forEach(function(c) {
         if (!c[key]) c[key] = Object.assign({ on: false }, defaults);
         c[key].blend = v;
+        markCardDirty(c);
       });
     });
   }
@@ -1618,27 +1548,27 @@ export function makeSfxHandlers(key, toggleId, defaults) {
       getSelectedCards().forEach(function(c) {
         if (!c[key]) c[key] = Object.assign({ on: false }, defaults);
         c[key].color = v;
+        markCardDirty(c);
       });
     });
   }
 }
 
 makeSfxHandlers('shimmer', 'toggle-shimmer', { opacity:0.22, width:0.2, speed:0.7, bands:2 });
-makeSfxHandlers('luster',  'toggle-luster',  { opacity:0.35, radius:0.75, pulse:0.3 });
 makeSfxHandlers('grain',   'toggle-grain',   { amount:0.12, scale:1.0, anim:0.4 });
 makeSfxHandlers('ripple',  'toggle-ripple',  { opacity:0.18, speed:0.8, rings:3, spread:0.5 });
-makeSfxHandlers('holo', 'toggle-holo', { intensity:1.0, iridescence:0.6, speed:1.0, size:2.0, refX:0, refY:0, refScale:1.0 });
+makeSfxHandlers('holo', 'toggle-holo', { intensity:1.0, iridescence:0.6, speed:1.0, size:2.0, depth:0.6, pattern:0.55 });
 
-// Holo mode select + glass controls visibility
+// Holo mode select + prism controls visibility
 (function() {
   var modeEl = document.getElementById('sel-holo-mode');
   if (!modeEl) return;
 
   function applyHoloModeUI(mode, isOn) {
-    var glassDiv = document.getElementById('holo-glass-controls');
+    var prismDiv = document.getElementById('holo-prism-controls');
     var sizeRow  = document.getElementById('holo-size-row');
-    if (glassDiv) glassDiv.style.display = (isOn && mode === 'glass') ? 'block' : 'none';
-    if (sizeRow)  sizeRow.style.display  = (isOn && (mode === 'sparkle' || mode === 'hex')) ? 'flex' : 'none';
+    if (prismDiv) prismDiv.style.display = (isOn && mode === 'prism') ? 'block' : 'none';
+    if (sizeRow)  sizeRow.style.display  = (isOn && (mode === 'sparkle' || mode === 'hex' || mode === 'prism')) ? 'flex' : 'none';
   }
 
   modeEl.addEventListener('change', function() {
@@ -1647,28 +1577,15 @@ makeSfxHandlers('holo', 'toggle-holo', { intensity:1.0, iridescence:0.6, speed:1
       if (!c.holo) c.holo = { on: false, blend: 'screen' };
       c.holo.mode = v;
       delete c._holoCache;
+      markCardDirty(c);
     });
     applyHoloModeUI(v, true);
   });
 }());
 
-// Glare toggle (missing handler)
-document.getElementById('toggle-glare').addEventListener('click', function() {
-  getSelectedCards().forEach(function(c) {
-    if (!c.glare) c.glare = { on: false, intensity: 1 };
-    c.glare.on = !c.glare.on;
-  });
-  updateInspector();
-});
-document.getElementById('sl-glare').addEventListener('input', function() {
-  var v = parseFloat(this.value);
-  document.getElementById('val-glare').textContent = v.toFixed(1);
-  getSelectedCards().forEach(function(c) { if (c.glare) c.glare.intensity = v; });
-});
-
 // Flip / Delete / Deselect
 document.getElementById('btn-flip').addEventListener('click', function() {
-  getSelectedCards().forEach(function(c) { c.showBack = !c.showBack; });
+  getSelectedCards().forEach(function(c) { c.showBack = !c.showBack; markCardDirty(c); });
   refreshSurfacePreview();
 });
 document.getElementById('btn-delete-sel').addEventListener('click', function() {
@@ -1704,6 +1621,7 @@ document.getElementById('btn-clear-surface').addEventListener('click', function(
   getSelectedCards().forEach(function(c) {
     if (st.activeSurface === 'front') c.frontImg = null;
     else c.backImg = null;
+    markCardDirty(c);
   });
   refreshSurfacePreview();
 });
@@ -1785,12 +1703,12 @@ document.getElementById('btn-deselect-text').addEventListener('click', function(
 
 document.getElementById('inp-text-content').addEventListener('input', function() {
   var v = this.value;
-  getSelectedCards().forEach(function(c) { if (c.kind === 'text') { c.content = v; } });
+  getSelectedCards().forEach(function(c) { if (c.kind === 'text') { c.content = v; markCardDirty(c); } });
   markDirty();
 });
 document.getElementById('sel-text-font').addEventListener('change', function() {
   var v = this.value;
-  getSelectedCards().forEach(function(c) { if (c.kind === 'text') c.font = v; });
+  getSelectedCards().forEach(function(c) { if (c.kind === 'text') { c.font = v; markCardDirty(c); } });
   markDirty();
 });
 (function() {
@@ -1804,14 +1722,14 @@ document.getElementById('sel-text-font').addEventListener('change', function() {
     document.getElementById(s.id).addEventListener('input', function() {
       var v = parseFloat(this.value);
       document.getElementById(s.val).textContent = s.fmt(v);
-      getSelectedCards().forEach(function(c) { if (c.kind === 'text') c[s.prop] = v; });
+      getSelectedCards().forEach(function(c) { if (c.kind === 'text') { c[s.prop] = v; markCardDirty(c); } });
       markDirty();
     });
   });
 })();
 document.getElementById('pick-text-color').addEventListener('input', function() {
   var v = this.value;
-  getSelectedCards().forEach(function(c) { if (c.kind === 'text') c.color = v; });
+  getSelectedCards().forEach(function(c) { if (c.kind === 'text') { c.color = v; markCardDirty(c); } });
   markDirty();
 });
 document.querySelectorAll('.text-align-btn').forEach(function(btn) {
@@ -1819,7 +1737,7 @@ document.querySelectorAll('.text-align-btn').forEach(function(btn) {
     var v = this.dataset.align;
     document.querySelectorAll('.text-align-btn').forEach(function(b) { b.classList.remove('active'); });
     this.classList.add('active');
-    getSelectedCards().forEach(function(c) { if (c.kind === 'text') c.align = v; });
+    getSelectedCards().forEach(function(c) { if (c.kind === 'text') { c.align = v; markCardDirty(c); } });
     markDirty();
   });
 });
@@ -1843,19 +1761,19 @@ document.getElementById('btn-deselect-rect').addEventListener('click', function(
     document.getElementById(s.id).addEventListener('input', function() {
       var v = parseFloat(this.value);
       document.getElementById(s.val).textContent = s.fmt(v);
-      getSelectedCards().forEach(function(c) { if (c.kind === 'rect') c[s.prop] = v; });
+      getSelectedCards().forEach(function(c) { if (c.kind === 'rect') { c[s.prop] = v; markCardDirty(c); } });
       markDirty();
     });
   });
 })();
 document.getElementById('pick-rect-fill').addEventListener('input', function() {
   var v = this.value;
-  getSelectedCards().forEach(function(c) { if (c.kind === 'rect') c.fillColor = v; });
+  getSelectedCards().forEach(function(c) { if (c.kind === 'rect') { c.fillColor = v; markCardDirty(c); } });
   markDirty();
 });
 document.getElementById('pick-rect-stroke').addEventListener('input', function() {
   var v = this.value;
-  getSelectedCards().forEach(function(c) { if (c.kind === 'rect') c.strokeColor = v; });
+  getSelectedCards().forEach(function(c) { if (c.kind === 'rect') { c.strokeColor = v; markCardDirty(c); } });
   markDirty();
 });
 

@@ -26,6 +26,7 @@ var _GR_FRAG = [
   'uniform vec3  u_c3;',
   'uniform vec3  u_cBack;',
   'uniform vec3  u_cBloom;',
+  'uniform float u_rayCap;',   // PERF.maxRays — caps ray count on mid/low tiers
 
   'vec3 ramp(float t){',
   '  t=fract(t);',
@@ -45,7 +46,7 @@ var _GR_FRAG = [
   '  float ts  = u_time*0.00014;',
   '  float angS = ang+ts;',
 
-  '  float nRays = 8.0+u_density*64.0;',
+  '  float nRays = min(8.0+u_density*64.0, u_rayCap);',
   '  float slot  = (angS/(2.0*3.14159265)+0.5)*nRays;',
   '  float slotI = floor(slot);',
   '  float slotF = fract(slot);',
@@ -119,7 +120,8 @@ function _grGetGL(W, H) {
       msz: ul('u_midSize'),  mit: ul('u_midInt'),   blm: ul('u_bloom'),
       org: ul('u_origin'),
       c0: ul('u_c0'), c1: ul('u_c1'), c2: ul('u_c2'), c3: ul('u_c3'),
-      cb: ul('u_cBack'), cbl: ul('u_cBloom')
+      cb: ul('u_cBack'), cbl: ul('u_cBloom'),
+      rayCap: ul('u_rayCap')
     }
   };
   return st._grGL;
@@ -182,6 +184,7 @@ export function drawBgGodRays(tctx, W, H, t, intensity) {
   gl.uniform3fv(gr.u.c3,  _grHex(c3H));
   gl.uniform3fv(gr.u.cb,  _grHex(cbH));
   gl.uniform3fv(gr.u.cbl, _grHex(c3H));
+  gl.uniform1f(gr.u.rayCap, st.PERF.maxRays);   // high: 72, mid/low: 32
 
   gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
 

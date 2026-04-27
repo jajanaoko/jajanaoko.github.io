@@ -443,23 +443,6 @@
           </div>
           <div class="divider"></div>
 
-          <!-- 4.4 Glare -->
-          <div class="panel-section">
-            <span class="section-label">Glare / Sheen</span>
-            <div class="toggle-wrap">
-              <div class="toggle" id="toggle-glare"></div>
-              <span class="toggle-label">Enable Glare</span>
-            </div>
-            <div id="glare-controls" style="display:none;">
-              <div class="slider-row">
-                <label>Intensity</label>
-                <input type="range" id="sl-glare" min="0" max="2" step="0.1" value="1"/>
-                <span class="val" id="val-glare">1.0</span>
-              </div>
-            </div>
-          </div>
-          <div class="divider"></div>
-
           <!-- 4.4b Drop Shadow -->
           <div class="panel-section">
             <span class="section-label">Drop Shadow</span>
@@ -491,27 +474,6 @@
                 <label>Offset Y</label>
                 <input type="range" id="sl-shadow-y" min="-40" max="40" step="1" value="10"/>
                 <span class="val" id="val-shadow-y">10</span>
-              </div>
-            </div>
-          </div>
-          <div class="divider"></div>
-
-          <!-- 4.5 Glow -->
-          <div class="panel-section">
-            <span class="section-label">Glow / Bloom</span>
-            <div class="toggle-wrap">
-              <div class="toggle" id="toggle-glow"></div>
-              <span class="toggle-label">Enable Glow</span>
-            </div>
-            <div id="glow-controls" style="display:none;">
-              <div class="slider-row">
-                <label>Colour</label>
-                <input type="color" id="pick-glow" value="#C9A84C"/>
-              </div>
-              <div class="slider-row">
-                <label>Intensity</label>
-                <input type="range" id="sl-glow" min="0.1" max="3" step="0.1" value="1"/>
-                <span class="val" id="val-glow">1.0</span>
               </div>
             </div>
           </div>
@@ -639,45 +601,6 @@
               </div>
             </div>
 
-            <!-- Luster -->
-            <div class="sfx-row">
-              <div class="toggle" id="toggle-luster"></div>
-              <span class="toggle-label">Luster</span>
-            </div>
-            <div id="luster-controls" style="display:none; margin-bottom:8px; padding-left:4px;">
-              <div class="slider-row">
-                <label>Blend</label>
-                <select id="sel-luster-blend" class="sfx-sel">
-                  <option value="overlay" selected>Overlay</option>
-                  <option value="soft-light">Soft Light</option>
-                  <option value="screen">Screen</option>
-                  <option value="multiply">Multiply</option>
-                  <option value="color">Color</option>
-                  <option value="luminosity">Luminosity</option>
-                  <option value="source-over">Normal</option>
-                </select>
-              </div>
-              <div class="slider-row">
-                <label>Colour</label>
-                <input type="color" id="pick-luster-color" value="#c9a84c"/>
-              </div>
-              <div class="slider-row">
-                <label>Opacity</label>
-                <input type="range" id="sl-luster-opacity" min="0.02" max="0.9" step="0.01" value="0.35"/ data-btn-step="0.05">
-                <span class="val" id="val-luster-opacity">0.35</span>
-              </div>
-              <div class="slider-row">
-                <label>Radius</label>
-                <input type="range" id="sl-luster-radius" min="0.2" max="1.5" step="0.05" value="0.75"/ data-btn-step="0.1">
-                <span class="val" id="val-luster-radius">0.75</span>
-              </div>
-              <div class="slider-row">
-                <label>Pulse</label>
-                <input type="range" id="sl-luster-pulse" min="0" max="1" step="0.05" value="0.3"/ data-btn-step="0.1">
-                <span class="val" id="val-luster-pulse">0.30</span>
-              </div>
-            </div>
-
             <!-- Grain -->
             <div class="sfx-row">
               <div class="toggle" id="toggle-grain"></div>
@@ -763,10 +686,9 @@
               <div class="slider-row">
                 <label>Mode</label>
                 <select id="sel-holo-mode" class="sfx-sel">
-                  <option value="glass" selected>Glass</option>
+                  <option value="prism" selected>Prism Foil</option>
                   <option value="sparkle">Sparkle</option>
                   <option value="hex">Hex Foil</option>
-                  <option value="aurora">Aurora</option>
                 </select>
               </div>
               <div class="slider-row">
@@ -800,23 +722,22 @@
                 <input type="range" id="sl-holo-size" min="0.5" max="6" step="0.25" value="2"/>
                 <span class="val" id="val-holo-size">2.00</span>
               </div>
-              <!-- Glass reflection controls (shown only in glass mode) -->
-              <div id="holo-glass-controls">
-                <div style="font-size:9px; color:var(--muted); margin:5px 0 3px; text-transform:uppercase; letter-spacing:0.06em;">Reflection</div>
+              <!-- Prism foil controls (shown only in prism mode) -->
+              <div id="holo-prism-controls">
+                <div style="font-size:9px; color:var(--muted); margin:5px 0 3px; text-transform:uppercase; letter-spacing:0.06em;">Prism</div>
                 <div class="slider-row">
-                  <label>X</label>
-                  <input type="range" id="sl-holo-refX" min="-50" max="50" step="1" value="0"/>
-                  <span class="val" id="val-holo-refX">0</span>
+                  <label>Depth</label>
+                  <input type="range" id="sl-holo-depth" min="0" max="1" step="0.05" value="0.6" data-btn-step="0.1"/>
+                  <span class="val" id="val-holo-depth">0.60</span>
                 </div>
                 <div class="slider-row">
-                  <label>Y</label>
-                  <input type="range" id="sl-holo-refY" min="-50" max="50" step="1" value="0"/>
-                  <span class="val" id="val-holo-refY">0</span>
+                  <label>Pattern</label>
+                  <input type="range" id="sl-holo-pattern" min="0" max="1" step="0.05" value="0.55" data-btn-step="0.1"/>
+                  <span class="val" id="val-holo-pattern">0.55</span>
                 </div>
                 <div class="slider-row">
-                  <label>Scale</label>
-                  <input type="range" id="sl-holo-refScale" min="0.5" max="2" step="0.05" value="1"/>
-                  <span class="val" id="val-holo-refScale">1.00</span>
+                  <label>Tint</label>
+                  <input type="color" id="pick-holo-color" value="#b07fff"/>
                 </div>
               </div>
             </div>

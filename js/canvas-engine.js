@@ -145,6 +145,5 @@ export function initPanelResizers() {
   (function() {
     var playbackRow = document.getElementById('playback-row');
     if (playbackRow) playbackRow.classList.add('visible');
-    window._syncPlaybackRow = function() {};
   })();
 }

@@ -106,6 +106,30 @@ export const AppState = {
   _lastGoodCanvasW: 0,
   _lastGoodCanvasH: 0,
 
+  // ── Performance profile (computed once at startup) ───────────
+  // PERF_TIER is captured at module load via an IIFE so it is stable.
+  // PERF is a getter so any future tier-switch just needs to rewrite
+  // PERF_TIER; all subsystems pick up the new caps on next read.
+  PERF_TIER: (function() {
+    var mobile = window.matchMedia('(max-width: 900px), (pointer: coarse)').matches;
+    var cores  = navigator.hardwareConcurrency || 4;
+    var lowEnd = mobile && cores <= 4;
+    return lowEnd ? 'low' : mobile ? 'mid' : 'high';
+  })(),
+  get PERF() {
+    var t = this.PERF_TIER;
+    return {
+      maxParticles:   t === 'high' ? 200  : t === 'mid' ? 100  : 60,
+      shaderOctaves:  t === 'high' ? 7    : t === 'mid' ? 5    : 4,
+      texScale:       t === 'high' ? 4    : t === 'mid' ? 2    : 2,
+      grainFps:       t === 'high' ? 6    : t === 'mid' ? 3    : 2,
+      shadowBlur:     t === 'high',
+      iridescentPass: t === 'high',
+      neuralNodeCap:  t === 'high' ? 40   : 24,
+      maxRays:        t === 'high' ? 72   : 32,
+    };
+  },
+
   // ── Layer panel ──────────────────────────────────────────────
   layerDrag: null,
   lastClickedLayerId: null,
@@ -271,12 +295,67 @@ export const AppState = {
   HANDLE_SIZE: 7,
 
   // ── Hex cache ────────────────────────────────────────────────
-  _hexToRgbCache: {}
+  _hexToRgbCache: {},
+
+  // ── Gyro / tilt (replaces window._gyro*) ─────────────────────
+  // Written by mobile.js pointer + device-orientation handlers.
+  // Read by renderer.js (editor tilt) and showcase-3d.js (3D card tilt).
+  // Pre-initialised so every read is safe without defensive `|| 0`.
+  gyro: {
+    active:     false,
+    tiltX:      0,
+    tiltY:      0,
+    depth:      0,
+    velocity:   0,
+    deltaGamma: 0,
+    deltaBeta:  0,
+    accelX:     0,
+    accelY:     0,
+    accelMag:   0
+  },
+
+  // ── Showcase 3D (replaces window._showcase3D*) ───────────────
+  // Written by showcase-3d.js on enter/exit. Read by app.js, video-export.js.
+  showcase3d: {
+    active:        false,
+    canvas:        null,  // Three.js renderer canvas element
+    particleEl:    null,  // particle overlay canvas element
+    particleCtx:   null,  // 2D context for particle overlay
+    cardPositions: []     // [{card, ndcX, ndcY}] — refreshed each frame
+  },
+
+  // ── UI callbacks (replaces window._collapse/expandTimeline etc.) ─
+  // Function refs assigned by their owning module at init.
+  // Callers use optional chaining to preserve the old `&&` guards.
+  uiCallbacks: {
+    tryStartGyro:     null,
+    deactivateGyro:   null,
+    expandTimeline:   null,
+    collapseTimeline: null
+  }
 
 };
 
 // BGFX_DEFAULTS must be computed after AppState is defined
 AppState.BGFX_DEFAULTS = JSON.parse(JSON.stringify(AppState.bgFx));
+
+// ── Card mutation tracking ────────────────────────────────────────────────
+// Bump card._version whenever a mutation can affect the baked showcase
+// texture (surface FX, text, colors, border, overlays, etc.). The showcase
+// texture baker compares card._version with obj._bakedVersion to decide
+// whether to re-run the drawCard() pipeline.
+//
+// IMPORTANT: missing a call site here is NOT fatal — the showcase baker has
+// a 250ms safety-floor re-bake for cards flagged as "static", so any missed
+// mutation still surfaces within a quarter second. See the _captureCardTexture
+// guard in showcase-3d.js.
+//
+// Separate concept from markDirty() in app.js — that one is a global
+// "canvas needs redraw + undo capture + save schedule" signal. Both coexist.
+export function markCardDirty(card) {
+  if (!card) return;
+  card._version = (card._version | 0) + 1;
+}
 
 // ── Stock cards (built-in assets) — separate constant, not part of AppState ──
 export var STOCK_CARDS = [

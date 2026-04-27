@@ -5,10 +5,20 @@
 
 import { BORDER_PRESETS, resolveBorder } from './border-presets.js';
 import { ICON_PRESETS } from './icon-presets.js';
-import { AppState as st } from './state.js';
-import { markDirty, syncRefs, updateCardCount, hideEmpty } from './app.js';
+import { AppState as st, markCardDirty } from './state.js';
+import { markDirty as _globalMarkDirty, syncRefs, updateCardCount, hideEmpty } from './app.js';
 import { renderLayers, getSelectedCards } from './layers.js';
 import { setSyncCustomInspector, refreshInspectorContent } from './renderer.js';
+
+// Local wrapper: every time we signal the canvas is dirty from the card
+// builder, also bump the currently-selected custom card's version counter
+// so the showcase texture baker re-renders. This makes all 25+ builder
+// mutation sites version-aware without modifying each call site.
+function markDirty() {
+  var c = getSelectedCards()[0];
+  if (c && c.kind === 'custom') markCardDirty(c);
+  _globalMarkDirty();
+}
 
 // ─── syncCustomInspector ──────────────────────────────────────────────────
 export function syncCustomInspector() {

@@ -62,8 +62,8 @@ export function showToast(msg) {
 // ─── createCard/createText/createRect ───────────────────────────────────
 export function createCard(frontImgId) {
   var id = 'c' + (st.nextCardId++);
-  var cx = st.canvas.clientWidth / 2 + (Math.random() - 0.5) * 80;
-  var cy = st.canvas.clientHeight / 2 + (Math.random() - 0.5) * 60;
+  var cx = st.canvas.clientWidth / 2 - (st.camOffset.x || 0) + (Math.random() - 0.5) * 80;
+  var cy = st.canvas.clientHeight / 2 - (st.camOffset.y || 0) + (Math.random() - 0.5) * 60;
   var card = {
     id: id,
     label: null,
@@ -73,10 +73,9 @@ export function createCard(frontImgId) {
     frontImg: frontImgId || null,
     backImg: st.DEFAULT_BACK_ID,
     showBack: false,
-    glare: { on: true, intensity: 1 },
-    glow: { on: false, color: '#C9A84C', intensity: 1 },
     _ax: 0, _ay: 0, _ar: 0, _as: 1, _ao: 1,
-    _holoPhase: Math.random() * Math.PI * 2
+    _holoPhase: Math.random() * Math.PI * 2,
+    _version: 1   // bumped by markCardDirty() on mutation — read by showcase texture baker
   };
   st.cards.push(card);
   syncRefs();
@@ -89,8 +88,8 @@ export function createCard(frontImgId) {
 
 export function createText() {
   var id = 'c' + (st.nextCardId++);
-  var cx = st.canvas.clientWidth  / 2 + (Math.random() - 0.5) * 60;
-  var cy = st.canvas.clientHeight / 2 + (Math.random() - 0.5) * 40;
+  var cx = st.canvas.clientWidth  / 2 - (st.camOffset.x || 0) + (Math.random() - 0.5) * 60;
+  var cy = st.canvas.clientHeight / 2 - (st.camOffset.y || 0) + (Math.random() - 0.5) * 40;
   var obj = {
     kind: 'text',
     id: id, label: null,
@@ -104,7 +103,8 @@ export function createText() {
     lineHeight: 1.3,
     opacity: 1,
     locked: false, hidden: false, groupId: null,
-    _ax: 0, _ay: 0, _ar: 0, _as: 1, _ao: 1
+    _ax: 0, _ay: 0, _ar: 0, _as: 1, _ao: 1,
+    _version: 1
   };
   st.cards.push(obj);
   syncRefs(); updateCardCount(); hideEmpty(); renderLayers();
@@ -114,8 +114,8 @@ export function createText() {
 
 export function createRect() {
   var id = 'c' + (st.nextCardId++);
-  var cx = st.canvas.clientWidth  / 2 + (Math.random() - 0.5) * 60;
-  var cy = st.canvas.clientHeight / 2 + (Math.random() - 0.5) * 40;
+  var cx = st.canvas.clientWidth  / 2 - (st.camOffset.x || 0) + (Math.random() - 0.5) * 60;
+  var cy = st.canvas.clientHeight / 2 - (st.camOffset.y || 0) + (Math.random() - 0.5) * 40;
   var obj = {
     kind: 'rect',
     id: id, label: null,
@@ -128,7 +128,8 @@ export function createRect() {
     strokeOpacity: 1,
     cornerRadius: 0,
     locked: false, hidden: false, groupId: null,
-    _ax: 0, _ay: 0, _ar: 0, _as: 1, _ao: 1
+    _ax: 0, _ay: 0, _ar: 0, _as: 1, _ao: 1,
+    _version: 1
   };
   st.cards.push(obj);
   syncRefs(); updateCardCount(); hideEmpty(); renderLayers();
@@ -138,8 +139,8 @@ export function createRect() {
 
 export function createCustomCard() {
   var id = 'c' + (st.nextCardId++);
-  var cx = st.canvas.clientWidth  / 2 + (Math.random() - 0.5) * 60;
-  var cy = st.canvas.clientHeight / 2 + (Math.random() - 0.5) * 40;
+  var cx = st.canvas.clientWidth  / 2 - (st.camOffset.x || 0) + (Math.random() - 0.5) * 60;
+  var cy = st.canvas.clientHeight / 2 - (st.camOffset.y || 0) + (Math.random() - 0.5) * 40;
   var card = {
     kind: 'custom',
     id: id, label: 'Custom Card',
@@ -151,18 +152,16 @@ export function createCustomCard() {
     icons:    { tl: null, tr: null, bl: null, br: null },
     border:   { presetId: 'arcane_gold', overrides: {} },
     finalized: false,
-    glare:  { on: false, intensity: 1 },
-    glow:   { on: false, color: '#C9A84C', intensity: 1 },
     shadow: { on: false, color: '#000000', opacity: 0.6, blur: 18, offsetX: 6, offsetY: 10 },
     spell:  { on: false, type: 'ember', density: 1, speed: 1 },
     shimmer: { on: false, intensity: 1 },
-    luster:  { on: false, intensity: 1 },
     grain:   { on: false, intensity: 1 },
     ripple:  { on: false, intensity: 1 },
-    holo:    { on: false, mode: 'glass', intensity: 1, iridescence: 0.6, speed: 1.0, size: 2.0, refX: 0, refY: 0, refScale: 1.0 },
+    holo:    { on: false, mode: 'prism', intensity: 1, iridescence: 0.6, speed: 1.0, size: 2.0, depth: 0.6, pattern: 0.55, color: '#b07fff' },
     hidden: false, locked: false, groupId: null,
     _ax: 0, _ay: 0, _ar: 0, _as: 1, _ao: 1,
-    _holoPhase: Math.random() * Math.PI * 2
+    _holoPhase: Math.random() * Math.PI * 2,
+    _version: 1
   };
   st.cards.push(card);
   syncRefs(); updateCardCount(); hideEmpty(); renderLayers();
@@ -302,6 +301,10 @@ export function loadProject() {
       // Track highest asset ID to avoid collisions on next upload
       var maxId = st.nextAssetId;
       st.cards.forEach(function(c) {
+        // Initialize mutation version counter for cards loaded from saved
+        // state that predate the version-counter refactor. Defaults to 1
+        // so the first showcase bake always runs.
+        if (typeof c._version !== 'number') c._version = 1;
         // Re-inflate front image
         if (c._frontDataURL && c.frontImg) {
           (function(cardRef, key, url) {
@@ -588,16 +591,15 @@ function update(t) {
   // 4. Auto-dirty: flag needsRedraw when any animated property is still moving.
   var hasParticles = st.cardsRef.some(function(c) { return c.spell && c.spell.on; });
   var hasBgFx      = (st.bgFxStack && st.bgFxStack.length) || !!st.bgFx.type;
-  var needsGyroShowcase = !!(window._gyroActive && document.body.classList.contains('showcase-mode'));
+  var needsGyroShowcase = !!(st.gyro.active && document.body.classList.contains('showcase-mode'));
   var hasHover = Object.keys(st.hoverData).some(function(k) {
     var h = st.hoverData[k]; return h && (h.elev > 1.001 || Math.abs(h.tilt) > 0.001);
   });
-  var hasGlare = st.cardsRef.some(function(c) { return c.glare && c.glare.on; });
   var hasSfx   = st.cardsRef.some(function(c) {
-    return (c.shimmer && c.shimmer.on) || (c.luster && c.luster.on) ||
+    return (c.shimmer && c.shimmer.on) ||
            (c.ripple && c.ripple.on)   || (c.holo   && c.holo.on);
   });
-  if (st.isPlaying || hasParticles || hasHover || hasBgFx || hasGlare || hasSfx ||
+  if (st.isPlaying || hasParticles || hasHover || hasBgFx || hasSfx ||
       needsGyroShowcase || st.globalLight.on ||
       st.cardDragging || st.isPanning || st.isOrbiting || st.resizeDragging) {
     st.needsRedraw = true;
@@ -620,8 +622,8 @@ function render(t, dt) {
 
   // Clear particle/FX overlay each render frame (not in the Three.js RAF loop,
   // because two independent RAF loops would create a race condition).
-  if (window._showcase3DActive && window._showcase3DParticleCtx) {
-    var _poc = window._showcase3DParticleCtx;
+  if (st.showcase3d.active && st.showcase3d.particleCtx) {
+    var _poc = st.showcase3d.particleCtx;
     _poc.clearRect(0, 0, _poc.canvas.width, _poc.canvas.height);
   }
 
@@ -697,8 +699,8 @@ function render(t, dt) {
     } else if (_c.kind === 'rect') {
       drawRectObj(_c, false);
     } else if (_c.kind === 'custom') {
-      if (!window._showcase3DActive) drawCustomCard(_c, t, false);
-      if (_c.spell && _c.spell.on && !window._showcase3DActive) {
+      if (!st.showcase3d.active) drawCustomCard(_c, t, false);
+      if (_c.spell && _c.spell.on && !st.showcase3d.active) {
         var _ax = _c._ax || 0, _ay = _c._ay || 0, _as = _c._as || 1;
         var _hov = st.hoverData[_c.id];
         var _elev = (_hov && _hov.elev) ? _hov.elev : 1;
@@ -708,13 +710,13 @@ function render(t, dt) {
       }
     } else {
       // Skip 2D card draw when the Three.js 3D overlay is active.
-      // Holo, shimmer, luster and grain are baked into the face texture each
+      // Holo, shimmer, grain and ripple are baked into the face texture each
       // frame by _captureCardTexture, so they follow the card perfectly without
       // any overlay. Drawing them again on the 2D canvas caused floating/lag.
-      if (!window._showcase3DActive) {
+      if (!st.showcase3d.active) {
         drawCard(_c, t, false);
       }
-      if (_c.spell && _c.spell.on && !window._showcase3DActive) {
+      if (_c.spell && _c.spell.on && !st.showcase3d.active) {
         // In showcase mode, THREE.Points in showcase-3d.js handles particles
         var _ax = _c._ax || 0, _ay = _c._ay || 0, _as = _c._as || 1;
         var _hov = st.hoverData[_c.id];
@@ -2052,12 +2054,14 @@ document.getElementById('btn-reshuffle').addEventListener('click', function() {
 // ============================================================
 document.getElementById('btn-zoom-in').addEventListener('click', function() {
   st.camZoom = Math.min(3, st.camZoom * 1.2); st.camZoomRef = st.camZoom;
+  st.needsRedraw = true;
 });
 document.getElementById('btn-undo').addEventListener('click', doUndo);
 document.getElementById('btn-redo').addEventListener('click', doRedo);
 
 document.getElementById('btn-zoom-out').addEventListener('click', function() {
   st.camZoom = Math.max(0.3, st.camZoom / 1.2); st.camZoomRef = st.camZoom;
+  st.needsRedraw = true;
 });
 
 document.getElementById('btn-orbit').addEventListener('click', function() {
@@ -2077,6 +2081,7 @@ document.getElementById('btn-reset-cam').addEventListener('click', function() {
   document.getElementById('btn-orbit').classList.remove('active', 'amber');
   document.getElementById('orbit-badge').style.display = 'none';
   document.getElementById('scene-orbit-hint').style.display = 'none';
+  st.needsRedraw = true;
 });
 
 // ============================================================

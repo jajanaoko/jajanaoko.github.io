@@ -37,7 +37,19 @@
       "Bash(\"/Users/markokolic/Documents/Arcana Glam/css/main.css\")",
       "Bash(grep -o \"{ name: ''[^'']*''\" \"/Users/markokolic/Documents/Arcana Glam/js/state.js\")",
       "Bash(cat:*)",
-      "Bash(grep -l \"particle\\\\|orb\\\\|spark\\\\|flare\" \"/Users/markokolic/Documents/Arcana Glam/js\"/*.js)"
+      "Bash(grep -l \"particle\\\\|orb\\\\|spark\\\\|flare\" \"/Users/markokolic/Documents/Arcana Glam/js\"/*.js)",
+      "Bash(node --check js/state.js)",
+      "Bash(node --check js/app.js)",
+      "Bash(node --check js/showcase-3d.js)",
+      "Bash(node --check js/renderer.js)",
+      "Bash(node --check js/fx-engine.js)",
+      "Bash(echo \"Server PID: $!\")",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:8080/)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:8080/Arcana_Glam_Mobile.html)",
+      "Bash(curl -v http://localhost:8080/)",
+      "mcp__Claude_Preview__preview_start",
+      "Bash(node --check \"/Users/markokolic/My Apps/Arcana Glam/js/showcase-3d.js\")",
+      "Bash(node --check \"/Users/markokolic/My Apps/Arcana Glam/js/renderer.js\")"
     ]
   }
 }

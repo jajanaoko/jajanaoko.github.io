@@ -779,7 +779,7 @@ export function sceneTagSummary(snap) {
   if (snap.bg.color && snap.bg.color !== '#0A0A0F') tags.push('bg');
   if (snap.bg.fxType) tags.push(snap.bg.fxType);
   if (snap.bg.texture) tags.push(snap.bg.texture);
-  var fx = ['glare','shadow','glow','spell','shimmer','luster','grain','ripple','holo'];
+  var fx = ['shadow','spell','shimmer','grain','ripple','holo'];
   var cardFxOn = {};
   snap.cardEffects.forEach(function(ce) {
     fx.forEach(function(f) { if (ce[f] && ce[f].on) cardFxOn[f] = true; });

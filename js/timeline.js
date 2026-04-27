@@ -443,14 +443,14 @@ export function applyAnimations(time) {
                 bgTextureOpacity: st.bgTextureOpacity,
                 bgFx: JSON.parse(JSON.stringify(st.bgFx))
               };
-              ['glare','glow','shadow','spell','shimmer','luster','grain','ripple','holo'].forEach(function(k){
+              ['shadow','spell','shimmer','grain','ripple','holo'].forEach(function(k){
                 snap[k] = JSON.parse(JSON.stringify(card[k] || {on:false}));
               });
               st._sceneFreezeCache[cacheKey] = snap;
             }
 
             var from = st._sceneFreezeCache[cacheKey];
-            var effectKeys = ['glare','glow','shadow','spell','shimmer','luster','grain','ripple','holo'];
+            var effectKeys = ['shadow','spell','shimmer','grain','ripple','holo'];
 
             if (sp.animateEffects !== false) {
               var tce = (targetSnap.cards || targetSnap.cardEffects || []).find(function(x){ return x.id === card.id; });
@@ -590,11 +590,11 @@ document.getElementById('btn-timeline-toggle').addEventListener('click', functio
   st.needsRedraw = true;
 });
 
-// Global helpers for nav buttons to expand/collapse timeline
-window._expandTimeline = function() {
+// Expand/collapse helpers — called from mobile.js via st.uiCallbacks
+st.uiCallbacks.expandTimeline = function() {
   if (!st.timelineOpen) document.getElementById('btn-timeline-toggle').click();
 };
-window._collapseTimeline = function() {
+st.uiCallbacks.collapseTimeline = function() {
   if (st.timelineOpen) document.getElementById('btn-timeline-toggle').click();
 };
 
@@ -949,7 +949,7 @@ export function buildInlineStepEditor(cardId, stepIdx, container) {
     body.appendChild(picker);
     addDivider();
     addLabel('Animate');
-    [{key:'animateEffects',label:'Card effects (glow, shimmer…)'},{key:'animateBg',label:'Background FX & colour'}].forEach(function(opt) {
+    [{key:'animateEffects',label:'Card effects (holo, shimmer…)'},{key:'animateBg',label:'Background FX & colour'}].forEach(function(opt) {
       if (p[opt.key] === undefined) p[opt.key] = true;
       var row = document.createElement('label');
       row.style.cssText = 'display:flex;align-items:center;gap:7px;font-size:11px;color:var(--text);margin-bottom:5px;cursor:pointer;';
@@ -1258,7 +1258,7 @@ export function refreshStepEditorPanel() {
     animLabel.textContent = 'Animate:';
     body.appendChild(animLabel);
     [
-      { key: 'animateEffects', label: 'Card effects (glow, spell, shimmer…)', def: true },
+      { key: 'animateEffects', label: 'Card effects (holo, spell, shimmer…)', def: true },
       { key: 'animateBg',      label: 'Background FX & color',                def: true },
     ].forEach(function(opt) {
       if (!step.params) step.params = {};

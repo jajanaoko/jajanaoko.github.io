@@ -26,9 +26,9 @@ function _compositeFrame() {
   // Layer 1 — main 2D canvas (background, BG FX)
   if (st.canvas) _compositeCtx.drawImage(st.canvas, 0, 0, cw, ch);
   // Layer 2 — Three.js WebGL card overlay
-  if (window._showcase3DCanvas) _compositeCtx.drawImage(window._showcase3DCanvas, 0, 0, cw, ch);
+  if (st.showcase3d.canvas) _compositeCtx.drawImage(st.showcase3d.canvas, 0, 0, cw, ch);
   // Layer 3 — 2D spell particles above the card
-  if (window._showcase3DParticleEl) _compositeCtx.drawImage(window._showcase3DParticleEl, 0, 0, cw, ch);
+  if (st.showcase3d.particleEl) _compositeCtx.drawImage(st.showcase3d.particleEl, 0, 0, cw, ch);
   _compositeRafId = requestAnimationFrame(_compositeFrame);
 }
 
@@ -91,7 +91,7 @@ export function startVideoRecording(durationSecs) {
   // st.canvas. captureStream() only sees one canvas, so we composite all layers
   // onto a scratch canvas and record that instead.
   var captureTarget = st.canvas;
-  if (window._showcase3DActive && window._showcase3DCanvas) {
+  if (st.showcase3d.active && st.showcase3d.canvas) {
     _compositeCanvas = document.createElement('canvas');
     _compositeCanvas.width  = st.canvas.width;
     _compositeCanvas.height = st.canvas.height;

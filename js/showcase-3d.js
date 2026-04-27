@@ -3,13 +3,13 @@
 //  Three.js card renderer active only in showcase mode.
 //  Sits on top of the existing canvas as a transparent overlay.
 //  The existing 2D canvas continues to render BG FX untouched.
-//  app.js skips 2D card drawing when window._showcase3DActive.
+//  app.js skips 2D card drawing when st.showcase3d.active.
 // ============================================================
 
 import * as THREE from 'three';
 import { AppState as st } from './state.js';
 import { drawCard, drawCustomCard } from './renderer.js';
-import { getSpellPreset, FIRE_PALETTES } from './fx-engine.js';
+import { getSpellPreset, FIRE_PALETTES, hexToRgbArr } from './fx-engine.js';
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -438,7 +438,6 @@ function _tickCardParticles(obj, dt) {
 //            so there's no material-index ambiguity.
 //   • Face : ShapeGeometry floating 0.006 in FRONT of the body's front cap.
 //            Eliminates z-fighting. Always faces +z toward camera. ✓
-//   • Sheen: ShapeGeometry 0.002 above the face for additive glare/shimmer.
 
 function _buildCardMesh(obj) {
   // Three-level hierarchy (spec §3):
@@ -456,8 +455,8 @@ function _buildCardMesh(obj) {
   // ── 3D card body ─────────────────────────────────────────────────────────
   var bodyMat = new THREE.MeshStandardMaterial({
     color:     0x1a1025,
-    roughness: 0.55,
-    metalness: 0.28
+    roughness: 0.78,
+    metalness: 0.08
   });
   var bodyGeo = new THREE.ExtrudeGeometry(faceShape, {
     depth:          CARD_THICK,
@@ -484,22 +483,6 @@ function _buildCardMesh(obj) {
   faceMesh.position.z = CARD_THICK * 0.5 + 0.006;
   rotGrp.add(faceMesh);
 
-  // ── Sheen overlay (additive glare / shimmer) ─────────────────────────────
-  var sheenGeo = new THREE.ShapeGeometry(faceShape, 20);
-  _remapShapeUVs(sheenGeo, 1, CARD_ASPECT);
-  var sheenMat = new THREE.MeshBasicMaterial({
-    map:         obj.sheenTex,
-    transparent: true,
-    opacity:     0.18,
-    blending:    THREE.AdditiveBlending,
-    depthWrite:  false,
-    toneMapped:  false,
-    side:        THREE.FrontSide
-  });
-  var sheenMesh = new THREE.Mesh(sheenGeo, sheenMat);
-  sheenMesh.position.z = CARD_THICK * 0.5 + 0.008;
-  rotGrp.add(sheenMesh);
-
   // ── Back face (shown when card is flipped) ───────────────────────────────
   var backGeo = new THREE.ShapeGeometry(faceShape, 20);
   _remapShapeUVs(backGeo, 1, CARD_ASPECT);
@@ -520,8 +503,6 @@ function _buildCardMesh(obj) {
   obj.bodyMesh   = bodyMesh;
   obj.faceMesh   = faceMesh;
   obj.faceMat    = faceMat;
-  obj.sheenMesh  = sheenMesh;
-  obj.sheenMat   = sheenMat;
   obj.backMesh   = backMesh;
 }
 
@@ -533,8 +514,40 @@ function _buildCardMesh(obj) {
 //      with scale=1 and rot=0 so it fills exactly 110×154 scaled px
 
 function _captureCardTexture(obj, t) {
-  var cap  = obj.capCtx;
   var card = obj.card;
+
+  // ── Version-counter dirty guard ───────────────────────────────────────
+  // Avoid re-baking the full drawCard() pipeline when nothing has changed.
+  // Animated cards throttle to ~30fps (high) / ~20fps (mid/low). Static
+  // cards only re-bake when card._version changes, OR every 250ms as a
+  // safety floor so any missed markCardDirty() call surfaces within a
+  // quarter second. The safety floor is what guarantees "feels alive
+  // without interaction" even if mutation tracking drifts.
+  if (obj._bakedVersion === undefined) obj._bakedVersion = -1;
+  var now = performance.now();
+
+  var hasAnim =
+    (card.shimmer && card.shimmer.on) ||
+    (card.holo    && card.holo.on)    ||
+    (card.ripple  && card.ripple.on)  ||
+    (card.grain   && card.grain.on)   ||
+    (st.isPlaying);   // timeline playback may ease texture-affecting props
+
+  var stale = obj._bakedVersion !== (card._version | 0);
+
+  if (hasAnim) {
+    var fpsLimitMs = st.PERF_TIER === 'high' ? 33 : 50;
+    if (!stale && obj._lastTexCapture && (now - obj._lastTexCapture) < fpsLimitMs) return;
+  } else {
+    var SAFETY_FLOOR_MS = 250;
+    var aged = !obj._lastTexCapture || (now - obj._lastTexCapture) > SAFETY_FLOOR_MS;
+    if (!stale && !aged) return;
+  }
+
+  obj._lastTexCapture = now;
+  obj._bakedVersion   = (card._version | 0);
+
+  var cap  = obj.capCtx;
 
   cap.clearRect(0, 0, TEX_W, TEX_H);
 
@@ -550,11 +563,30 @@ function _captureCardTexture(obj, t) {
   card.scale = TEX_SCALE;    // 4 — fills the canvas
   card.rot   = 0;
 
-  // Suppress only glare during texture capture — glare is tilt-reactive and is
-  // already handled by the sheen layer. Holo, shimmer, luster and grain bake
-  // directly into the face texture so they appear on the card in 3D.
-  var _sfxGlare = card.glare;
-  card.glare = undefined;
+  // Inject showcase-sourced tilt into the card's hover record for the duration
+  // of the bake. This is what gives the prism holo reflection its parallax
+  // motion in showcase — without it the bake would be pose-neutral and the
+  // reflection would sit frozen inside the face texture.
+  //
+  // st.gyro.tiltY is already scaled to ±24 by mobile.js (_tiltStrength=24),
+  // same range the editor path puts into hov.tilt via lerp. No extra * 6
+  // multiplier — that was over-amplifying and producing chaotic motion.
+  //
+  // Smoothing uses a gentler lerp (0.08) than the editor (0.16) because the
+  // bake runs at 20–30fps (throttled) rather than 60fps. The lower factor
+  // compensates for the fewer frames available to interpolate through,
+  // keeping the foil sweep buttery at the bake cadence.
+  var _hov = st.hoverData[card.id];
+  var _savedHovTilt = _hov ? _hov.tilt : undefined;
+  // Smooth both axes — Y drives hov.tilt (foil parallax), X drives
+  // the light wash shift so both respond to card interaction.
+  var rawTiltY = st.gyro.tiltY || 0;
+  var rawTiltX = st.gyro.tiltX || 0;
+  if (obj._smoothBakeTilt  == null) obj._smoothBakeTilt  = rawTiltY;
+  if (obj._smoothBakeTiltX == null) obj._smoothBakeTiltX = rawTiltX;
+  obj._smoothBakeTilt  += (rawTiltY - obj._smoothBakeTilt)  * 0.08;
+  obj._smoothBakeTiltX += (rawTiltX - obj._smoothBakeTiltX) * 0.08;
+  if (_hov) _hov.tilt = obj._smoothBakeTilt;
 
   var savedCtx = st.ctx;
   st.ctx = cap;
@@ -567,9 +599,39 @@ function _captureCardTexture(obj, t) {
     }
   } catch (e) { /* ignore missing-image errors during load */ }
 
+  // ── Global light wash on baked card texture ──────────────────────────────
+  // In editor mode, drawGlobalLighting paints a scene-wide glow over the
+  // canvas *after* cards are drawn. In showcase the card is a baked texture
+  // on a MeshBasicMaterial (unlit), so that glow never reaches it. We add
+  // a directional gradient here so the card surface picks up the global
+  // light colour, position, and intensity — matching the editor appearance.
+  var gl = st.globalLight;
+  if (gl && gl.on && (gl.intensity || 0) > 0.001) {
+    var glRgb  = hexToRgbArr(gl.color || '#ffffff').join(',');
+    var glInt  = Math.max(0, Math.min(1, gl.intensity || 0.6));
+    // Map 2D light position onto the card texture, then shift opposite to
+    // tilt so the wash drifts like a real reflection catching a fixed light.
+    var glLx   = (gl.x != null ? gl.x : 0.5) * TEX_W;
+    var glLy   = (gl.y != null ? gl.y : 0.35) * TEX_H;
+    glLx += -(obj._smoothBakeTiltX || 0) / 24 * TEX_W * 0.55;
+    glLy += -(obj._smoothBakeTilt  || 0) / 24 * TEX_H * 0.55;
+    // Keep the wash tight enough that movement is visible — a huge radius
+    // makes it uniform across the card and the shift becomes imperceptible.
+    var glRad  = Math.max(40, Math.min(TEX_W, TEX_H) * (gl.radius || 0.55) * 0.9);
+    var glGrad = cap.createRadialGradient(glLx, glLy, 0, glLx, glLy, glRad);
+    glGrad.addColorStop(0.0,  'rgba(' + glRgb + ',' + (glInt * 0.55) + ')');
+    glGrad.addColorStop(0.4,  'rgba(' + glRgb + ',' + (glInt * 0.25) + ')');
+    glGrad.addColorStop(1.0,  'rgba(' + glRgb + ',0)');
+    cap.save();
+    cap.globalCompositeOperation = 'lighter';
+    cap.fillStyle = glGrad;
+    cap.fillRect(0, 0, TEX_W, TEX_H);
+    cap.restore();
+  }
+
   st.ctx = savedCtx;
 
-  card.glare = _sfxGlare;
+  if (_hov) _hov.tilt = _savedHovTilt;
 
   card.x     = sx;
   card.y     = sy;
@@ -579,97 +641,6 @@ function _captureCardTexture(obj, t) {
   obj.texture.needsUpdate = true;
 }
 
-function _captureSheen(obj, t) {
-  var cap = obj.sheenCtx;
-  var W = TEX_W, H = TEX_H;
-  cap.clearRect(0, 0, W, H);
-
-  // velocity from gyro tick (mouse tilt on desktop, device motion on mobile)
-  var vel = (window._gyroActive && window._gyroVelocity != null)
-    ? window._gyroVelocity : 0;
-
-  // Only show effects when there is actual movement — idle card has no glare.
-  // vel is typically 0–0.05 at rest, spikes to 0.2+ on fast motion.
-  var motion = Math.min(1, vel * 14);   // 0 at rest → 1 at fast motion
-
-  // Read global light before the early-exit so we can draw a static base glow
-  var gl   = st.globalLight;
-  var glOn = gl && gl.on && (gl.intensity || 0) > 0.01;
-  var glR  = 255, glG = 255, glB = 255;
-  if (glOn) {
-    var hex = gl.color || '#ffffff';
-    glR = parseInt(hex.slice(1, 3), 16);
-    glG = parseInt(hex.slice(3, 5), 16);
-    glB = parseInt(hex.slice(5, 7), 16);
-  }
-  var glInt = glOn ? (gl.intensity || 0.6) : 0;
-
-  // Static base hotspot — visible even at rest when global light is on.
-  // Positioned from the 2D light coordinates (gl.x / gl.y).
-  if (glOn) {
-    var sgx = W * (gl.x != null ? gl.x : 0.5);
-    var sgy = H * (gl.y != null ? gl.y : 0.35);
-    var sgr = Math.max(W, H) * 0.65;
-    var baseA = glInt * 0.07;
-    var sGrad = cap.createRadialGradient(sgx, sgy, 0, sgx, sgy, sgr);
-    sGrad.addColorStop(0,    'rgba(' + glR + ',' + glG + ',' + glB + ',' + baseA + ')');
-    sGrad.addColorStop(0.5,  'rgba(' + glR + ',' + glG + ',' + glB + ',' + (baseA * 0.25) + ')');
-    sGrad.addColorStop(1,    'rgba(0,0,0,0)');
-    cap.fillStyle = sGrad;
-    cap.fillRect(0, 0, W, H);
-  }
-
-  // If no motion, the static glow above is all we draw
-  if (motion < 0.01) {
-    obj.sheenTex.needsUpdate = true;
-    return;
-  }
-
-  var tiltX = window._gyroTiltX || 0;  // [-1, 1] normalised
-  var tiltY = window._gyroTiltY || 0;
-
-  // ── Specular hotspot ───────────────────────────────────────────────────────
-  // Position opposite to tilt (simulates the global light source above the card).
-  // Only visible when global light is on AND card is moving.
-  if (glOn) {
-    var gx = W * (0.5 - tiltY * 0.65);
-    var gy = H * (0.5 - tiltX * 0.65);
-    var gr = Math.max(W, H) * 0.55;
-    var hotAlpha = motion * glInt * 0.11;   // scales with light intensity
-
-    var radGrad = cap.createRadialGradient(gx, gy, 0, gx, gy, gr);
-    radGrad.addColorStop(0,    'rgba(' + glR + ',' + glG + ',' + glB + ',' + hotAlpha + ')');
-    radGrad.addColorStop(0.45, 'rgba(' + glR + ',' + glG + ',' + glB + ',' + (hotAlpha * 0.35) + ')');
-    radGrad.addColorStop(1,    'rgba(0,0,0,0)');
-    cap.fillStyle = radGrad;
-    cap.fillRect(0, 0, W, H);
-  }
-
-  // ── Motion-flash shimmer band ──────────────────────────────────────────────
-  // Narrow band sweeping perpendicular to tilt, coloured by the global light.
-  // Appears only on fast motion; completely absent if light is off.
-  if (glOn) {
-    var shimA = motion * glInt * 0.16;
-    var bx = W * (0.5 + tiltY * 0.5);
-    var by = H * (0.5 + tiltX * 0.5);
-    var bw = Math.max(W, H) * 0.18;
-    var nx = -tiltX, ny = tiltY;
-    var nlen = Math.sqrt(nx * nx + ny * ny) || 1;
-    nx /= nlen; ny /= nlen;
-    var shimGr = cap.createLinearGradient(
-      bx - nx * bw, by - ny * bw * CARD_ASPECT,
-      bx + nx * bw, by + ny * bw * CARD_ASPECT
-    );
-    shimGr.addColorStop(0,   'rgba(' + glR + ',' + glG + ',' + glB + ',0)');
-    shimGr.addColorStop(0.5, 'rgba(' + glR + ',' + glG + ',' + glB + ',' + shimA + ')');
-    shimGr.addColorStop(1,   'rgba(' + glR + ',' + glG + ',' + glB + ',0)');
-    cap.fillStyle = shimGr;
-    cap.fillRect(0, 0, W, H);
-  }
-
-  obj.sheenTex.needsUpdate = true;
-}
-
 // ── Scene / renderer setup ────────────────────────────────────────────────────
 
 function _setupScene(W, H) {
@@ -677,8 +648,8 @@ function _setupScene(W, H) {
   _camera = new THREE.PerspectiveCamera(42, W / H, 0.01, 100);
   _camera.position.z = 3.8;
 
-  // Ambient at 0.60 — key light adds brightness when global light is on.
-  _ambientLight = new THREE.AmbientLight(0xffffff, 0.40);
+  // Ambient at 0.45 — semigloss paper base; key light adds directed highlights.
+  _ambientLight = new THREE.AmbientLight(0xffffff, 0.45);
   _scene.add(_ambientLight);
 
   // Key light — driven by st.globalLight (color + intensity), updated every frame.
@@ -741,9 +712,9 @@ function _setupRenderer(W, H) {
   } else {
     document.body.appendChild(_particleEl);
   }
-  window._showcase3DParticleCtx = _particleCtx;
-  window._showcase3DCanvas      = _overlayEl;
-  window._showcase3DParticleEl  = _particleEl;
+  st.showcase3d.particleCtx = _particleCtx;
+  st.showcase3d.canvas      = _overlayEl;
+  st.showcase3d.particleEl  = _particleEl;
 }
 
 // ── Card layout ───────────────────────────────────────────────────────────────
@@ -778,8 +749,8 @@ function _tickPhysics(obj, dt, dg, db, ax, ay) {
   // (delta-accumulated + spring), so reading here works on desktop and mobile.
   // tiltX = left/right (gamma) → yaw (rotY)
   // tiltY = forward/back (beta) → pitch (rotX)
-  var tiltX = Math.max(-1, Math.min(1, (window._gyroTiltX || 0) / GYRO_NORM));
-  var tiltY = Math.max(-1, Math.min(1, (window._gyroTiltY || 0) / GYRO_NORM));
+  var tiltX = Math.max(-1, Math.min(1, (st.gyro.tiltX || 0) / GYRO_NORM));
+  var tiltY = Math.max(-1, Math.min(1, (st.gyro.tiltY || 0) / GYRO_NORM));
   obj.targetRotX = tiltY * MAX_PITCH;
   obj.targetRotY = tiltX * MAX_YAW;
 
@@ -834,7 +805,6 @@ function _tickPhysics(obj, dt, dg, db, ax, ay) {
   // Swapping at the 90° crossing gives a physically accurate reveal.
   var showFront = Math.cos(obj.rotY) >= 0;
   if (obj.faceMesh)  obj.faceMesh.visible  = showFront;
-  if (obj.sheenMesh) obj.sheenMesh.visible = showFront;
   if (obj.backMesh)  obj.backMesh.visible  = !showFront;
 
   // ── Position derived from rotation (spec §6) ─────────────────────────────
@@ -897,10 +867,10 @@ function _syncKeyLight() {
   var hex = gl.color || '#ffffff';
 
   // ── Key light ─────────────────────────────────────────────────────────────
-  // Drives specular on the body/edge (MeshStandardMaterial) and
-  // the sheen canvas hotspot. Low intensity — not a scene fill.
+  // Drives specular on the body/edge. Scaled by global light intensity so
+  // turning the light up or down visibly changes the card's highlight.
   _keyLight.color.setStyle(hex);
-  _keyLight.intensity = glInt * 0.62;   // strong enough to visibly warm the face
+  _keyLight.intensity = glInt * 0.45;
 
   // Map 2D light position → 3D direction
   var lx =  (gl.x != null ? gl.x : 0.5) * 4 - 2;
@@ -908,12 +878,13 @@ function _syncKeyLight() {
   _keyLight.position.set(lx, ly, 2.5);
 
   // ── Ambient tint ──────────────────────────────────────────────────────────
-  // Shift ambient hue noticeably toward global light colour when light is on.
+  // Shift ambient hue toward global light colour. Lower base intensity for
+  // a more matte feel — the key light provides directed highlights.
   var base = new THREE.Color(0xffffff);
   var tint = new THREE.Color().setStyle(hex);
-  base.lerp(tint, glInt * 0.12);
+  base.lerp(tint, glInt * 0.22);
   _ambientLight.color.copy(base);
-  _ambientLight.intensity = 0.60;
+  _ambientLight.intensity = 0.45;
 }
 
 // ── Animation loop ────────────────────────────────────────────────────────────
@@ -921,7 +892,7 @@ function _syncKeyLight() {
 var _lastT = 0;
 
 function _loop(now) {
-  if (!window._showcase3DActive) return;
+  if (!st.showcase3d.active) return;
   _rafId = requestAnimationFrame(_loop);
 
   var dt = now - (_lastT || now);
@@ -931,12 +902,12 @@ function _loop(now) {
 
   // Consume gyro deltas once per frame — read before the card loop, zero after.
   // This ensures each delta from mobile.js is applied exactly once across all cards.
-  var _dg = window._gyroDeltaGamma || 0;
-  var _db = window._gyroDeltaBeta  || 0;
-  var _ax = window._gyroAccelX     || 0;
-  var _ay = window._gyroAccelY     || 0;
-  window._gyroDeltaGamma = 0;
-  window._gyroDeltaBeta  = 0;
+  var _dg = st.gyro.deltaGamma || 0;
+  var _db = st.gyro.deltaBeta  || 0;
+  var _ax = st.gyro.accelX     || 0;
+  var _ay = st.gyro.accelY     || 0;
+  st.gyro.deltaGamma = 0;
+  st.gyro.deltaBeta  = 0;
 
   for (var i = 0; i < _cardObjs.length; i++) {
     var obj = _cardObjs[i];
@@ -945,7 +916,6 @@ function _loop(now) {
     var _doCapture = !(st.MOBILE_PERF_QUERY && st.MOBILE_PERF_QUERY.matches) || (_captureFrame % 2 === 0);
     if (_doCapture) {
       _captureCardTexture(obj, now);
-      _captureSheen(obj, now);
     }
     _tickCardParticles(obj, dt);
   }
@@ -979,7 +949,7 @@ function _loop(now) {
       ndcTopY:  _vTop.y, ndcBotY:  _vBot.y
     });
   }
-  window._showcase3DCardPositions = _positions;
+  st.showcase3d.cardPositions = _positions;
 }
 
 // ── Public API ────────────────────────────────────────────────────────────────
@@ -1009,17 +979,10 @@ export function enterShowcase3D() {
     capCanvas.width = TEX_W; capCanvas.height = TEX_H;
     var capCtx = capCanvas.getContext('2d');
 
-    var sheenCanvas = document.createElement('canvas');
-    sheenCanvas.width = TEX_W; sheenCanvas.height = TEX_H;
-    var sheenCtx = sheenCanvas.getContext('2d');
-
     var texture  = new THREE.CanvasTexture(capCanvas);
-    var sheenTex = new THREE.CanvasTexture(sheenCanvas);
     texture.colorSpace  = THREE.SRGBColorSpace;
     texture.minFilter   = THREE.LinearFilter;
     texture.magFilter   = THREE.LinearFilter;
-    sheenTex.minFilter  = THREE.LinearFilter;
-    sheenTex.magFilter  = THREE.LinearFilter;
     // Anisotropy set after renderer is created — applied in enterShowcase3D
     // where _renderer is available.
 
@@ -1027,18 +990,13 @@ export function enterShowcase3D() {
       card:         card,
       capCanvas:    capCanvas,
       capCtx:       capCtx,
-      sheenCanvas:  sheenCanvas,
-      sheenCtx:     sheenCtx,
       texture:      texture,
-      sheenTex:     sheenTex,
       group:        null,   // anchor — fixed at layout position
       floatGroup:   null,   // positional drift layer
       rotGroup:     null,   // rotation layer — geometry lives here
       bodyMesh:     null,
       faceMesh:     null,
       faceMat:      null,
-      sheenMesh:    null,
-      sheenMat:     null,
       backMesh:     null,
       isFlipped:    false,  // true when card is showing back face
       _flipCooldown: 0,     // frames until next flip can trigger
@@ -1051,7 +1009,10 @@ export function enterShowcase3D() {
       targetX: 0, targetY: 0,   // layout anchor position (world units)
       partState:  null,
       partGeo:    null,
-      partPoints: null
+      partPoints: null,
+      // Version-counter dirty tracking (read by _captureCardTexture guard)
+      _bakedVersion:    -1, // force first bake on frame 1 (any card._version >= 0)
+      _lastTexCapture:  0   // performance.now() of last bake — drives throttle + safety floor
     };
 
     _buildCardMesh(obj);
@@ -1074,7 +1035,7 @@ export function enterShowcase3D() {
     if (o.floatGroup) o.floatGroup.position.set(0, 0, 0);
   }
 
-  window._showcase3DActive = true;
+  st.showcase3d.active = true;
   _lastT = 0;
   _rafId = requestAnimationFrame(_loop);
 
@@ -1082,16 +1043,46 @@ export function enterShowcase3D() {
   window.addEventListener('pointerdown', _onTap);
 }
 
-// ── Tap / click impulse ───────────────────────────────────────────────────────
-// Applies a short velocity kick to all cards so they spin and bounce, then
-// spring back. Distinguishes a tap (no movement) from a drag/scroll.
+// ── Tap / click impulse + double-tap flip ─────────────────────────────────────
+// Single tap: velocity kick to all cards (spin + bounce, spring back).
+// Double tap/click on a card: flips that card 180° to show the back/front.
+// Distinguishes a tap (no movement) from a drag/scroll.
 
 var _tapStartX = 0, _tapStartY = 0;
+var _lastTapTime = 0, _lastTapX = 0, _lastTapY = 0;
+var DOUBLE_TAP_MS = 350;   // max gap between taps
+var DOUBLE_TAP_PX = 30;    // max drift between taps
 
 function _onTap(e) {
   _tapStartX = e.clientX;
   _tapStartY = e.clientY;
   window.addEventListener('pointerup', _onTapEnd, { once: true });
+}
+
+// Hit-test: find the card object closest to a tap in NDC space.
+// Returns the obj if the tap lands within a reasonable radius, else null.
+function _hitTestCard(tapX, tapY) {
+  if (!st.showcase3d.cardPositions || !_cardObjs.length) return null;
+  var bestObj = null, bestDist = Infinity;
+  for (var i = 0; i < _cardObjs.length; i++) {
+    var obj = _cardObjs[i];
+    for (var j = 0; j < st.showcase3d.cardPositions.length; j++) {
+      var p = st.showcase3d.cardPositions[j];
+      if (p.card !== obj.card) continue;
+      // Card half-extents in NDC — approximate from top/bottom projection
+      var halfH = Math.abs(p.ndcTopY - p.ndcBotY) * 0.5;
+      var halfW = halfH / CARD_ASPECT;   // card is taller than wide
+      // Rectangular hit test with a small margin
+      var dx = Math.abs(tapX - p.ndcX);
+      var dy = Math.abs(tapY - p.ndcY);
+      if (dx < halfW * 1.15 && dy < halfH * 1.15) {
+        var dist = dx * dx + dy * dy;
+        if (dist < bestDist) { bestDist = dist; bestObj = obj; }
+      }
+      break;
+    }
+  }
+  return bestObj;
 }
 
 function _onTapEnd(e) {
@@ -1100,20 +1091,48 @@ function _onTapEnd(e) {
   // Only treat as tap if pointer barely moved (not a drag/scroll)
   if (Math.sqrt(dx * dx + dy * dy) > 12) return;
 
+  var now = performance.now();
+
   // Tap position in NDC (-1..1 on both axes, Y up)
   var tapX =  (e.clientX / window.innerWidth)  * 2 - 1;
   var tapY = -(e.clientY / window.innerHeight) * 2 + 1;
 
+  // ── Double-tap detection ──────────────────────────────────────────────────
+  var dtGap = now - _lastTapTime;
+  var dtDx  = e.clientX - _lastTapX;
+  var dtDy  = e.clientY - _lastTapY;
+  var dtDist = Math.sqrt(dtDx * dtDx + dtDy * dtDy);
+
+  if (dtGap < DOUBLE_TAP_MS && dtDist < DOUBLE_TAP_PX) {
+    // Double tap — flip the tapped card
+    var hitObj = _hitTestCard(tapX, tapY);
+    if (hitObj && hitObj._flipCooldown <= 0) {
+      hitObj.isFlipped = !hitObj.isFlipped;
+      hitObj._flipCooldown = 45;
+      // Give a satisfying rotation impulse in the flip direction
+      hitObj.velY += hitObj.isFlipped ? 0.18 : -0.18;
+    }
+    // Reset so a third tap doesn't count as another double
+    _lastTapTime = 0;
+    return;
+  }
+
+  // Record this tap for future double-tap detection
+  _lastTapTime = now;
+  _lastTapX    = e.clientX;
+  _lastTapY    = e.clientY;
+
+  // ── Single tap — push all cards ───────────────────────────────────────────
   for (var i = 0; i < _cardObjs.length; i++) {
     var obj = _cardObjs[i];
 
     // Card-relative direction: tap offset from this card's projected center
     var cardX = 0, cardY = 0;
-    if (window._showcase3DCardPositions) {
-      for (var j = 0; j < window._showcase3DCardPositions.length; j++) {
-        if (window._showcase3DCardPositions[j].card === obj.card) {
-          cardX = window._showcase3DCardPositions[j].ndcX;
-          cardY = window._showcase3DCardPositions[j].ndcY;
+    if (st.showcase3d.cardPositions) {
+      for (var j = 0; j < st.showcase3d.cardPositions.length; j++) {
+        if (st.showcase3d.cardPositions[j].card === obj.card) {
+          cardX = st.showcase3d.cardPositions[j].ndcX;
+          cardY = st.showcase3d.cardPositions[j].ndcY;
           break;
         }
       }
@@ -1135,7 +1154,7 @@ function _onTapEnd(e) {
 }
 
 export function exitShowcase3D() {
-  window._showcase3DActive = false;
+  st.showcase3d.active = false;
 
   if (_rafId) { cancelAnimationFrame(_rafId); _rafId = null; }
 
@@ -1156,7 +1175,6 @@ export function exitShowcase3D() {
       if (_scene) _scene.remove(obj.group);
     }
     if (obj.texture)  obj.texture.dispose();
-    if (obj.sheenTex) obj.sheenTex.dispose();
     if (obj.partGeo)  obj.partGeo.dispose();  // partPoints is child of group, removed with it
   }
   _cardObjs = [];
@@ -1176,9 +1194,9 @@ export function exitShowcase3D() {
     _particleEl  = null;
     _particleCtx = null;
   }
-  window._showcase3DParticleCtx = null;
-  window._showcase3DCanvas      = null;
-  window._showcase3DParticleEl  = null;
+  st.showcase3d.particleCtx = null;
+  st.showcase3d.canvas      = null;
+  st.showcase3d.particleEl  = null;
 
   _scene        = null;
   _camera       = null;

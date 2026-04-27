@@ -5,7 +5,7 @@
 //  showcase mode, gyroscope / device-orientation.
 // ============================================================
 
-import { AppState as st } from './state.js';
+import { AppState as st, markCardDirty } from './state.js';
 import { markDirty, haptic, showToast, syncRefs, updateCardCount, hideEmpty, updateInspector, registerAfterRenderHook, registerUpdateInspectorHook, createCard, applyLayout, focusCamera } from './app.js';
 import { screenToWorld } from './canvas-engine.js';
 import { cardAtPoint, selectCard, deselectAll, renderLayers } from './layers.js';
@@ -96,7 +96,7 @@ export function initMobile() {
   mnavCanvas && mnavCanvas.addEventListener('click', function(){
     closeDrawers();
     // Canvas tap also collapses timeline back to default
-    if (typeof window._collapseTimeline === 'function') window._collapseTimeline();
+    st.uiCallbacks.collapseTimeline?.();
     mnavTimeline && mnavTimeline.classList.remove('active');
   });
 
@@ -106,10 +106,10 @@ export function initMobile() {
     var isExpanded = document.getElementById('bottom-panel').classList.contains('timeline-expanded');
     if (isExpanded) {
       // Already open — collapse (toggle off)
-      if (typeof window._collapseTimeline === 'function') window._collapseTimeline();
+      st.uiCallbacks.collapseTimeline?.();
       mnavTimeline.classList.remove('active');
     } else {
-      if (typeof window._expandTimeline === 'function') window._expandTimeline();
+      st.uiCallbacks.expandTimeline?.();
       mnavTimeline.classList.add('active');
     }
   });
@@ -460,13 +460,13 @@ export function initMobile() {
     // Defer camera centering so the CSS layout (panel collapse, canvas resize)
     // has time to settle before we read canvas.clientWidth/Height.
     setTimeout(centerCameraOnShowcase, 160);
-    window._tryStartGyro && window._tryStartGyro();
+    st.uiCallbacks.tryStartGyro?.();
   }
 
   function exitShowcaseMode() {
     document.body.classList.remove('showcase-mode');
     document.body.classList.remove('gyro-awaiting-permission');
-    window._deactivateGyro && window._deactivateGyro();
+    st.uiCallbacks.deactivateGyro?.();
   }
 
 
@@ -478,10 +478,10 @@ export function initMobile() {
     _showcaseModeWasActive = isActive;
     if (isActive) {
       closeDrawers();
-      window._tryStartGyro && window._tryStartGyro();
+      st.uiCallbacks.tryStartGyro?.();
     } else {
       document.body.classList.remove('gyro-awaiting-permission');
-      window._deactivateGyro && window._deactivateGyro();
+      st.uiCallbacks.deactivateGyro?.();
     }
   });
   showcaseModeObserver.observe(document.body, { attributes: true, attributeFilter: ['class'] });
@@ -552,9 +552,9 @@ export function initMobile() {
   }
 
   function buildGlowCard(card, color) {
-    // Glow intentionally left OFF — user can enable per-card in inspector
-    card.glare   = { on: true, intensity: 1 };
+    // Template helper — enables shimmer by default. Holo/other FX added per template.
     card.shimmer = { on: true, opacity: 0.18, width: 0.22, speed: 0.8, bands: 2 };
+    markCardDirty(card);
   }
 
   var TEMPLATES = {
@@ -573,7 +573,8 @@ export function initMobile() {
       var cx = st.canvas.clientWidth / 2, cy = st.canvas.clientHeight / 2;
       var c = createCard(null); c.x = cx; c.y = cy; c.rot = 0; c.scale = 1.3;
       buildGlowCard(c, '#b07fff');
-      c.holo = { on: true };
+      c.holo = { on: true, mode: 'prism', intensity: 1.0, iridescence: 0.7, speed: 1.0, size: 2.0, depth: 0.6, pattern: 0.55, color: '#b07fff' };
+      markCardDirty(c);
       applyComboToCard(String(c.id), [['Pop', {}], ['Float', {params:{rise:28, sway:8, tilt:3}}]]);
       st.selectedIds = [c.id];
     },
@@ -665,10 +666,10 @@ export function initMobile() {
 
   // ── Showcase tilt: touch-drag primary, real sensor enhancement on HTTPS ──
   (function(){
-    window._gyroActive = false;
-    window._gyroTiltX  = 0;
-    window._gyroTiltY  = 0;
-    window._gyroDepth  = 0;
+    st.gyro.active = false;
+    st.gyro.tiltX  = 0;
+    st.gyro.tiltY  = 0;
+    st.gyro.depth  = 0;
 
     var localCanvasWrap = document.getElementById('canvas-wrap');
     var allowBtn   = document.getElementById('gyro-allow-btn');
@@ -698,7 +699,7 @@ export function initMobile() {
     // Single animation loop — spring physics toward target, writes globals + CSS
     function tick() {
       _rafId = null;
-      if (!window._gyroActive) return;
+      if (!st.gyro.active) return;
 
       // ── Target decay ─────────────────────────────────────────────────────
       if (!_dragActive) {
@@ -738,11 +739,11 @@ export function initMobile() {
       var wY = Math.cos(_wobbleT * 0.53 + 0.83) * _wStr;
 
       // ── Export tilt velocity so renderer can react to fast motion ───────
-      window._gyroVelocity = Math.sqrt(_velX * _velX + _velY * _velY);
+      st.gyro.velocity = Math.sqrt(_velX * _velX + _velY * _velY);
 
-      window._gyroTiltX = (_smoothX + wX) * _tiltStrength;
-      window._gyroTiltY = (_smoothY + wY) * _tiltStrength;
-      window._gyroDepth = _smoothZ;
+      st.gyro.tiltX = (_smoothX + wX) * _tiltStrength;
+      st.gyro.tiltY = (_smoothY + wY) * _tiltStrength;
+      st.gyro.depth = _smoothZ;
 
       // Keep the background fixed in showcase/view mode.
       // Motion should only influence the card rendering, not the whole st.canvas wrapper.
@@ -786,7 +787,7 @@ export function initMobile() {
       setTarget(-nx * strength, -ny * strength, pushZ);
       if (_touchKickTimer) clearTimeout(_touchKickTimer);
       _touchKickTimer = setTimeout(function(){
-        if (window._gyroActive && !_dragActive) setTarget(0, 0, _baseDepth);
+        if (st.gyro.active && !_dragActive) setTarget(0, 0, _baseDepth);
       }, _tiltReturnMs);
     }
 
@@ -795,7 +796,7 @@ export function initMobile() {
     var _dragBaseX  = 0, _dragBaseY  = 0;
 
     function onTouchStart(e) {
-      if (!window._gyroActive) return;
+      if (!st.gyro.active) return;
       if (e.touches.length !== 1) { _dragActive = false; return; } // 2-finger = camera move, not tilt
       _dragActive = true;
       _dragStartX = e.touches[0].clientX;
@@ -806,7 +807,7 @@ export function initMobile() {
     }
 
     function onTouchMove(e) {
-      if (!window._gyroActive || !_dragActive || e.touches.length !== 1) return;
+      if (!st.gyro.active || !_dragActive || e.touches.length !== 1) return;
       var dx = (e.touches[0].clientX - _dragStartX) / (window.innerWidth  * 0.22);
       var dy = (e.touches[0].clientY - _dragStartY) / (window.innerHeight * 0.22);
       var nx = _dragBaseX + dx;
@@ -820,12 +821,12 @@ export function initMobile() {
       if (!_dragActive) return;
       _dragActive = false;
       if (_touchKickTimer) clearTimeout(_touchKickTimer);
-      _touchKickTimer = setTimeout(function(){ if (window._gyroActive) setTarget(0, 0, _baseDepth); }, _tiltReturnMs);
+      _touchKickTimer = setTimeout(function(){ if (st.gyro.active) setTarget(0, 0, _baseDepth); }, _tiltReturnMs);
     }
 
     // ── Mouse (desktop) ───────────────────────────────────────────────────
     function onMouseMove(e) {
-      if (!window._gyroActive) return;
+      if (!st.gyro.active) return;
       setTarget(
         (e.clientX / window.innerWidth)  * 2 - 1,
         (e.clientY / window.innerHeight) * 2 - 1
@@ -900,13 +901,13 @@ export function initMobile() {
 
       // Export deltas for 3D physics impulse
       if (Math.abs(dg) > 0.2 || Math.abs(db) > 0.2) {
-        window._gyroDeltaGamma = dg;
-        window._gyroDeltaBeta  = db;
+        st.gyro.deltaGamma = dg;
+        st.gyro.deltaBeta  = db;
       }
 
       // Stillness detection — phone is still if angular motion AND linear accel are low
       var motionMag = Math.abs(dg) + Math.abs(db);
-      var isStill = motionMag < 0.5 && window._gyroAccelMag < 1.5;
+      var isStill = motionMag < 0.5 && st.gyro.accelMag < 1.5;
       if (isStill) {
         _stillCount++;
         if (_stillCount > 17) { // ~340 ms of stillness at 50 Hz
@@ -946,15 +947,15 @@ export function initMobile() {
       _accelLPX += (ax - _accelLPX) * 0.08;
       _accelLPY += (ay - _accelLPY) * 0.08;
       // High-pass = user-generated force only
-      window._gyroAccelX   = ax - _accelLPX;
-      window._gyroAccelY   = ay - _accelLPY;
+      st.gyro.accelX   = ax - _accelLPX;
+      st.gyro.accelY   = ay - _accelLPY;
       // Raw magnitude for stillness detection (gravity stays in)
-      window._gyroAccelMag = Math.sqrt(ax * ax + ay * ay + az * az);
+      st.gyro.accelMag = Math.sqrt(ax * ax + ay * ay + az * az);
     }
 
     // ── Lifecycle ─────────────────────────────────────────────────────────
     function activate() {
-      if (window._gyroActive) return;
+      if (st.gyro.active) return;
       _targetX = 0; _targetY = 0; _targetZ = _baseDepth;
       _smoothX = 0; _smoothY = 0; _smoothZ = _baseDepth;
       _velX = 0; _velY = 0; _velZ = 0; _wobbleT = 0;
@@ -968,7 +969,7 @@ export function initMobile() {
       _settleBuffer = [];
       if (_settleTimer) { clearTimeout(_settleTimer); _settleTimer = null; }
       _accelLPX = 0; _accelLPY = 0;
-      window._gyroActive = true;
+      st.gyro.active = true;
       if (st.canvasWrap) st.canvasWrap.dataset.gyro = '1';
       // Attach all inputs — whichever provides data wins
       window.addEventListener('deviceorientation', onDeviceOrientation, { passive: true });
@@ -984,15 +985,15 @@ export function initMobile() {
     }
 
     function deactivate() {
-      if (!window._gyroActive) return;
-      window._gyroActive = false;
-      window._gyroTiltX    = 0;
-      window._gyroTiltY    = 0;
-      window._gyroDeltaGamma = 0;
-      window._gyroDeltaBeta  = 0;
-      window._gyroAccelX   = 0;
-      window._gyroAccelY   = 0;
-      window._gyroAccelMag = 0;
+      if (!st.gyro.active) return;
+      st.gyro.active = false;
+      st.gyro.tiltX    = 0;
+      st.gyro.tiltY    = 0;
+      st.gyro.deltaGamma = 0;
+      st.gyro.deltaBeta  = 0;
+      st.gyro.accelX   = 0;
+      st.gyro.accelY   = 0;
+      st.gyro.accelMag = 0;
       _sensorActive = false;
       _poseX = 0; _poseY = 0;
       _impulseX = 0; _impulseY = 0;
@@ -1001,7 +1002,7 @@ export function initMobile() {
       _targetX = 0; _targetY = 0; _targetZ = _baseDepth;
       _smoothX = 0; _smoothY = 0; _smoothZ = _baseDepth;
       _velX = 0; _velY = 0; _velZ = 0;
-      window._gyroVelocity = 0;
+      st.gyro.velocity = 0;
       if (_touchKickTimer) { clearTimeout(_touchKickTimer); _touchKickTimer = null; }
       if (_rafId) { cancelAnimationFrame(_rafId); _rafId = null; }
       if (st.canvasWrap) { st.canvasWrap.dataset.gyro = '0'; st.canvasWrap.style.transform = ''; }
@@ -1028,9 +1029,8 @@ export function initMobile() {
       }
     }
 
-    window._tryStartGyro   = tryStart;
-    window._deactivateGyro = deactivate;
-    window._activateGyro   = activate;
+    st.uiCallbacks.tryStartGyro   = tryStart;
+    st.uiCallbacks.deactivateGyro = deactivate;
 
     // iOS permission buttons
     allowBtn && allowBtn.addEventListener('click', function() {

@@ -25,9 +25,9 @@ export function enterShowcase() {
   document.body.classList.add('showcase-mode');
   // Defer camera centering so CSS layout transitions settle first
   setTimeout(centerCameraOnShowcase, 160);
-  // _tryStartGyro is set by mobile.js — activates gyro on Android / touch,
-  // shows the iOS permission overlay, or starts mouse-driven tilt on desktop.
-  window._tryStartGyro && window._tryStartGyro();
+  // st.uiCallbacks.tryStartGyro is set by mobile.js — activates gyro on
+  // Android / touch, shows the iOS permission overlay, or starts mouse tilt.
+  st.uiCallbacks.tryStartGyro?.();
   // Activate Three.js 3D overlay (falls back to 2D silently if WebGL unavailable)
   setTimeout(enterShowcase3D, 200);
 }
@@ -36,7 +36,7 @@ export function exitShowcase() {
   document.body.classList.remove('showcase-mode');
   document.body.classList.remove('gyro-awaiting-permission');
   hideFrameSelector();
-  window._deactivateGyro && window._deactivateGyro();
+  st.uiCallbacks.deactivateGyro?.();
   exitShowcase3D();
   markDirty();
 }
